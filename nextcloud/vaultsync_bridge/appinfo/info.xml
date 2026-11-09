@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<info>
+	<id>vaultsync_bridge</id>
+	<name>VaultSync Bridge</name>
+	<summary>Experimental VaultSync API for Nextcloud 34.0.1 only</summary>
+	<description>Proof-first, experimental bridge for Nextcloud 34.0.1 only and ordinary unencrypted local home storage. Other releases fail closed. It is not a universal Nextcloud compatibility claim.</description>
+	<version>0.1.0</version>
+	<licence>AGPL-3.0-or-later</licence>
+	<author>upiscium</author>
+	<namespace>VaultSyncBridge</namespace>
+	<category>tools</category>
+	<dependencies>
+		<nextcloud min-version="34.0.1" max-version="34.0.1" />
+	</dependencies>
+</info>

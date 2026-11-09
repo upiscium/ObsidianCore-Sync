@@ -1,0 +1,36 @@
+VaultSync Bridge, part of ObsidianCore Sync
+Copyright (C) 2026 upiscium
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program, in LICENSE. If not, see
+https://www.gnu.org/licenses/agpl-3.0.html .
+
+This app archive contains the editable PHP/XML source for Bridge 0.1.0.
+README.md contains installation instructions and the limited compatibility
+matrix. The accompanying ObsidianCore-Sync-source-0.1.0.zip contains the
+whole project's first-party source, build instructions and integration tests.
+Test/proof helpers in that source archive must NOT be installed in this app.
+Nextcloud itself is not included or relicensed by this notice.
+
+If you modify the network-accessible Bridge, review AGPL section 13 and
+prominently offer the exact modified Corresponding Source to all users
+interacting with it remotely, at no charge. Supply that offer in the service's
+user-facing information; an unpublished planned repository is not an offer.
+
+Project: https://github.com/upiscium/ObsidianCore-Sync
+Version 0.1.0 release page and matching source archive:
+https://github.com/upiscium/ObsidianCore-Sync/releases/tag/v0.1.0
+For an unpublished local build, request its matching source archive from the
+supplier. A local build does not establish that a release has been published.
+Contact/profile: https://github.com/upiscium .

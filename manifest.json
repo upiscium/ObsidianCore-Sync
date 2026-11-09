@@ -1,0 +1,10 @@
+{
+  "id": "vaultsync",
+  "name": "ObsidianCore Sync",
+  "version": "0.1.0",
+  "minAppVersion": "1.8.7",
+  "description": "WebDAV sync with three-way Markdown merging, conflict resolution, and recovery history.",
+  "author": "upiscium",
+  "authorUrl": "https://github.com/upiscium",
+  "isDesktopOnly": false
+}

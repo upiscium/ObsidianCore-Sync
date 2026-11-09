@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<info>
+	<id>vaultsync_proof</id>
+	<name>VaultSync Proof Listener</name>
+	<summary>Disposable test-only listener for VaultSync bridge concurrency proofs</summary>
+	<description>Temporary integration-test instrumentation for two internal mutation-gate events. Not for production use.</description>
+	<version>0.1.0</version>
+	<licence>agpl</licence>
+	<author>VaultSync</author>
+	<namespace>VaultSyncProof</namespace>
+	<category>tools</category>
+	<types>
+		<filesystem/>
+	</types>
+	<dependencies>
+		<nextcloud min-version="34" max-version="34" />
+	</dependencies>
+</info>

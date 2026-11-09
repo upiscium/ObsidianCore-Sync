@@ -1,0 +1,58 @@
+ObsidianCore Sync and VaultSync Bridge
+Copyright (C) 2026 upiscium
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program, in LICENSE. If not, see
+https://www.gnu.org/licenses/agpl-3.0.html .
+
+Scope and third-party material
+------------------------------
+This notice applies to this project's first-party client, Bridge, build and
+test scripts, tests, styles, configuration, and documentation, unless a file
+states otherwise. Third-party software and reproduced license documents
+retain their own copyright notices and terms; they are not relicensed by
+this notice. Full notices for third-party code in main.js are in
+THIRD_PARTY_NOTICES.txt and in the legal-notice comment at the end of main.js.
+Obsidian and Nextcloud are separate products, not included in these archives;
+their licenses and trademarks are not changed by this project.
+
+Corresponding source for version 0.1.0
+--------------------------------------
+ObsidianCore-Sync-source-0.1.0.zip accompanies the built plugin. A local-test
+ZIP includes that source archive; a release-candidate directory supplies it
+next to main.js, manifest.json, and styles.css. The source archive contains
+the first-party source, build/install instructions, scripts and lockfile.
+README.md and docs/release-preparation.md explain rebuilding and installing.
+Unmodified npm dependencies are identified by exact versions, download URLs,
+and integrity values in package-lock.json; npm ci retrieves them. A fresh
+build therefore needs access to those dependencies, not an offline-only
+toolchain. The Bridge ZIP also contains its own PHP source and LICENSE.
+
+When offering a binary download, provide equivalent, no-extra-charge access
+to its matching source archive at the same place and identify that archive
+beside the binary. Preserve the notices. Do not replace matching source with
+an unrelated branch or a later build. If you modify a network-accessible
+version, review section 13 and prominently offer its Corresponding Source
+to users interacting with that version over the network.
+
+Distribution and source access
+------------------------------
+Project: https://github.com/upiscium/ObsidianCore-Sync
+Version 0.1.0 release page:
+https://github.com/upiscium/ObsidianCore-Sync/releases/tag/v0.1.0
+Use the matching source archive offered beside the binary on that page.
+For an unpublished local build, obtain its matching source archive from the
+same person/place that supplied the binary. A locally generated manifest is
+not proof that a tag or release has been published.
+Contact/profile: https://github.com/upiscium .
