@@ -24,15 +24,17 @@ import {
 } from './package-io.mjs';
 import {
   assertSnapshotUnchanged,
+  BRIDGE_VERSION,
   collectSourceSnapshot,
   createSourceArchive,
+  RELEASE_VERSION,
   SOURCE_ARCHIVE_NAME,
   validateBuildInputCoverage,
 } from './release-files.mjs';
 
 export { validateRegularFileStat, validateSameFileIdentity };
 
-export const PACKAGE_VERSION = '0.1.0';
+export const PACKAGE_VERSION = RELEASE_VERSION;
 export const PLUGIN_DISPLAY_NAME = 'ObsidianCore Sync';
 export const PACKAGE_TOP_LEVEL = `ObsidianCore-Sync-local-test-${PACKAGE_VERSION}`;
 export const PACKAGE_ARCHIVE_NAME = `${PACKAGE_TOP_LEVEL}.zip`;
@@ -168,7 +170,7 @@ export function validatePackageMetadata({ packageJson, packageLock, pluginManife
   if (bridgeInfo.id !== 'vaultsync_bridge') fail('Nextcloud appinfo id mismatch');
   if (bridgeInfo.licence !== 'AGPL-3.0-or-later') fail('Nextcloud bridge licence must be AGPL-3.0-or-later');
   if (bridgeInfo.author !== 'upiscium') fail('Nextcloud bridge author must be upiscium');
-  assertVersion(bridgeInfo.version, 'Nextcloud bridge version');
+  assertVersion(bridgeInfo.version, 'Nextcloud bridge version', BRIDGE_VERSION);
   if (Object.keys(bridgeInfo).some((key) => key.startsWith('@_'))) fail('Bridge appinfo info root attributes are not allowed');
   assertExactKeys(bridgeInfo.dependencies, ['nextcloud'], 'Bridge appinfo dependencies');
   assertExactKeys(bridgeInfo.dependencies.nextcloud, ['@_min-version', '@_max-version'], 'Bridge Nextcloud compatibility attributes');
@@ -196,7 +198,7 @@ export function validatePackageManifest(manifest) {
     fail('Package manifest SHA-256 must be identified as integrity-only, not authenticity');
   }
   assertVersion(manifest.pluginVersion, 'Package manifest pluginVersion');
-  assertVersion(manifest.bridgeVersion, 'Package manifest bridgeVersion');
+  assertVersion(manifest.bridgeVersion, 'Package manifest bridgeVersion', BRIDGE_VERSION);
   if (manifest.minObsidianVersion !== MIN_OBSIDIAN_VERSION) fail(`Package manifest minObsidianVersion must be ${MIN_OBSIDIAN_VERSION}`);
   assertExactKeys(manifest.nextcloudSupport, ['exactVersion'], 'Package manifest nextcloudSupport');
   if (manifest.nextcloudSupport.exactVersion !== NEXTCLOUD_EXACT_VERSION) fail(`Package manifest must state exact Nextcloud ${NEXTCLOUD_EXACT_VERSION} support`);
@@ -220,7 +222,7 @@ export function validatePackageManifest(manifest) {
 
 export function createPackageManifest(files, metadata = {
   pluginVersion: PACKAGE_VERSION,
-  bridgeVersion: PACKAGE_VERSION,
+  bridgeVersion: BRIDGE_VERSION,
   minObsidianVersion: MIN_OBSIDIAN_VERSION,
   nextcloudVersion: NEXTCLOUD_EXACT_VERSION,
 }) {

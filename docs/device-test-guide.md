@@ -1,8 +1,8 @@
-# ObsidianCore Sync 0.1.0 ローカル端末テストガイド
+# ObsidianCore Sync 0.1.1 ローカル端末テストガイド
 
 この文書は、この ZIP を使って、**本物のデータや本番サーバーに触れない小規模な端末テスト**を行うための案内です。ZIP 内のファイル名は `START-HERE.md` です。
 
-> **このZIPはローカルテスト用で、公開リリースのassetsとは別です。** 作者は`upiscium`、独自コードは`AGPL-3.0-or-later`、内部版は`0.1.0`です。GitHubリリースのタグ名は`v0.1.0`で、公開状況は`upiscium/ObsidianCore-Sync`のReleasesを確認してください。公式Community Pluginsディレクトリへの申請は予定していません。内部ID・同期状態・同期ロジックは維持し、作者／ライセンス表記と配布構成を整えています。Bridgeにもライセンスmetadata・SPDXコメント・文書を追加しますが、API／ロック／CAS動作は変更しません。Windows／Android実機での今回版は未検証です。Linuxの確認結果も他の端末・構成の動作保証ではありません。
+> **このZIPはローカルテスト用で、公開リリースのassetsとは別です。** 作者は`upiscium`、独自コードは`AGPL-3.0-or-later`、クライアント内部版は`0.1.1`です。GitHubリリースのタグ名は`v0.1.1`で、公開状況は`upiscium/ObsidianCore-Sync`のReleasesを確認してください。公式Community Pluginsディレクトリへの申請は予定していません。今回の変更は右下ステータスの件数・失敗表示で、内部ID・同期状態・CASの安全ガードは維持します。Bridgeのコード・metadata・文書は0.1.0のまま変更せず、再導入は不要です。Windows／Android実機での今回版は未検証です。Linuxの確認結果も他の端末・構成の動作保証ではありません。
 
 今回の名称対応は、クライアント旧表示名`VaultSync`から新表示名`ObsidianCore Sync`への表示上の変更準備です。`ObsidianCore Sync`は表示名であり、技術IDやデータパスを変更しません。コマンドパレットの表示ラベルは`ObsidianCore Sync: ...`、コマンドIDは`vaultsync:...`のままです。
 
@@ -34,24 +34,24 @@
 - `EditorDeferredError`は、メインの未保存エディター保護ガードが明示的に返す場合に、そのファイルを「編集中の保留」と扱います。ローカル状態が未読込であることは、ファイル不存在・削除の根拠になりません。ガードされたファイルを保留にして、他のファイルの同期は続けます。
 - 保留だけで完了した自動同期はエラートーストを出さず、自動同期エラー記録も新規作成・置換しません。既存の実エラー記録は、後続の保留のみ／正常な自動同期後も残ります。I/O、CAS、ネットワーク、復旧などのその他の失敗は通常のエラーです。手動レポートには「保留（編集中）」セクション、ステータスバーには「前回保留 N」と表示します。ステータス表示は最後の試行の要約で、現在の保留を再照会した保証ではありません。
 - リモート確定後に保留となる可能性があるため、保留は「サーバーは未変更」の証明ではありません。該当処理は未確定状態として記録し、保護対象の履歴を保持します。次の新しい同期でリモート状態を確認し、必要なら競合として扱ってください。
-- クライアントの導入対象は3ファイルです。永続同期状態は版1、`data.json`、`private/`、接続先エンドポイントの形式も従来どおりで、移行・消去しません。内部版は`0.1.0`、リリースタグ名は`v0.1.0`です。Bridgeの作者／ライセンス表記は整えていますが、動作やMariaDB／Redisの構成変更は不要です。Bridgeサーバーの表示名／版は`VaultSync Bridge/0.1.0`のままです。
+- クライアントの導入対象は3ファイルです。永続同期状態は版1、`data.json`、`private/`、接続先エンドポイントの形式も従来どおりで、移行・消去しません。内部版は`0.1.1`、リリースタグ名は`v0.1.1`です。Bridgeの再導入やMariaDB／Redisの構成変更は不要です。Bridgeサーバーの表示名／版は`VaultSync Bridge/0.1.0`のままです。
 - 共有診断JSONは`vaultsync-diagnostics-v2`です。`lastSync.deferred`は保留件数の数値または`null`で、保留だけで完了した場合の`outcome`は`completed-with-deferred`です。中断または実エラーなどがあればそちらの結果が優先され、保留件数は別項目に残ります。診断は件数のみで、ファイル名・生のエラー・本文・認証情報は含みません。RAM上の自動同期エラー記録を消去する設定保存／アンロード／再起動の挙動は変更していません。
 
 リポジトリ側の開発用`test:live`コンテナfixtureは、この端末テスト手順とは別のものです。MariaDB検証ではDB・Redisポートをホストへ公開せず、internalバックエンドとnon-internalフロントエンドの2ネットワークにアプリを接続します。アプリのホスト公開口は`127.0.0.1`のHTTPだけで、テストクライアントは証明書を検証するHTTPSプロキシを介してアクセスします。一方でアプリの外向き通信はフロントエンド経由で可能なため、「egress-free」ではありません。検証用コンテナは実行IDラベル付きで停止しますが削除せず、2つのfixtureネットワークも残します。DBとNextcloudのtmpfsデータは停止後に残りませんが、Dockerコンテナ設定の`Env`には生成済み認証情報が残ります。`.integration/`の鍵・認証情報も機微情報です。これらを共有・公開せず、Docker daemonへのアクセスを制限してください。このガイドには自動削除・権限変更・一括pruneの手順はありません。
 
 ## ZIP の構成を確認する
 
-ローカルテストZIP名と、展開後のトップフォルダー名は`ObsidianCore-Sync-local-test-0.1.0`です（ZIP名には`.zip`を付けます）。内部版`0.1.0`は公開済みという意味ではありません。ZIPを展開したら、最初に次のトップフォルダーが1つ見えることを確認します。個々のファイルだけをZIPの誤った階層から直接インストールしないでください。
+ローカルテストZIP名と、展開後のトップフォルダー名は`ObsidianCore-Sync-local-test-0.1.1`です（ZIP名には`.zip`を付けます）。内部版`0.1.1`は公開済みという意味ではありません。ZIPを展開したら、最初に次のトップフォルダーが1つ見えることを確認します。個々のファイルだけをZIPの誤った階層から直接インストールしないでください。
 
 ```text
-ObsidianCore-Sync-local-test-0.1.0/
+ObsidianCore-Sync-local-test-0.1.1/
 ├── START-HERE.md
 ├── DEVICE-TEST-CHECKLIST.md
 ├── package-manifest.json
 ├── LICENSE
 ├── NOTICE
 ├── THIRD_PARTY_NOTICES.txt
-├── ObsidianCore-Sync-source-0.1.0.zip
+├── ObsidianCore-Sync-source-0.1.1.zip
 ├── obsidian/
 │   └── vaultsync/
 │       ├── main.js
@@ -72,17 +72,17 @@ BridgeのPHP/XMLは合計9ファイルです。`appinfo/info.xml`、`appinfo/rou
 `package-manifest.json`の`files`は、21個の同梱ファイルごとの`path`（相対パス）、`size`（バイト単位）、`sha256`を記録しています。内包する対応ソースZIPを1ファイルとして数え、manifest自身を加えた外側ZIPのファイルは22個です。ZIPとmanifest自体のハッシュは、作成時の別ファイル`package-result.json`にも記録されます。照合時は、受け渡し元で確認した期待値を使用してください。例：
 
 ```powershell
-Get-FileHash .\ObsidianCore-Sync-local-test-0.1.0.zip -Algorithm SHA256
-Get-FileHash .\ObsidianCore-Sync-local-test-0.1.0\package-manifest.json -Algorithm SHA256
-Get-FileHash .\ObsidianCore-Sync-local-test-0.1.0\obsidian\vaultsync\main.js -Algorithm SHA256
+Get-FileHash .\ObsidianCore-Sync-local-test-0.1.1.zip -Algorithm SHA256
+Get-FileHash .\ObsidianCore-Sync-local-test-0.1.1\package-manifest.json -Algorithm SHA256
+Get-FileHash .\ObsidianCore-Sync-local-test-0.1.1\obsidian\vaultsync\main.js -Algorithm SHA256
 ```
 
 Linux では同じファイルを次のように計算できます。manifest の各エントリーについても、記録されたパスのファイルサイズと SHA-256 を照合してください。
 
 ```sh
-sha256sum ObsidianCore-Sync-local-test-0.1.0.zip
-sha256sum ObsidianCore-Sync-local-test-0.1.0/package-manifest.json
-sha256sum ObsidianCore-Sync-local-test-0.1.0/obsidian/vaultsync/main.js
+sha256sum ObsidianCore-Sync-local-test-0.1.1.zip
+sha256sum ObsidianCore-Sync-local-test-0.1.1/package-manifest.json
+sha256sum ObsidianCore-Sync-local-test-0.1.1/obsidian/vaultsync/main.js
 ```
 
 ハッシュ一致は、照合した値とのファイル同一性を確かめるだけです。期待値も ZIP 内の manifest だけから得た場合、発行者の本人性や配布経路は認証されません。署名・信頼できる別経路の値がない場合は、出所を確認できたものとして扱わないでください。TLS 検証を無効にしてダウンロードしないでください。
@@ -124,6 +124,12 @@ sha256sum ObsidianCore-Sync-local-test-0.1.0/obsidian/vaultsync/main.js
 4. 実際にインストールされたObsidianCore Syncのバージョンと Obsidian のバージョンを、各端末で人が確認して記録します。Bridge の **API／プロトコル版**（例：protocol 1）はアプリのバージョンではありません。表示や manifest に記された実際のインストール版と混同しないでください。
 
 診断JSONの `obsidianApiVersion` は Obsidian が公開するAPI版です。端末の「Obsidianについて」等で確認した実インストール版とは別に扱います。ObsidianCore Sync 0.1.0同士でもテストビルドが異なることがあるため、必要に応じて受け取ったZIPのSHA-256も控えてください。
+
+### 0.1.1の件数・失敗表示
+
+ステータスバーがある端末では、同期中に`同期中 12/100 ファイル`のように確認済み／対象数が表示されます。無変更や削除確認、競合・保留・スキップ・エラーになった対象も確認を試みたら数えるため、転送成功件数ではありません。対象一覧が揃うまでは`対象確認中`で、履歴整理は別表示です。
+
+自動同期の実エラー時はNotifyに加えて`自動同期失敗`を表示し、再試行中も前回の失敗を残します。履歴整理までエラー・中断・スキップ・編集保留なく終わった手動／自動同期、設定保存の反映、再起動で解除します。競合は別の件数で表示します。過去の自動エラー記録は解除後も保持され、その記録の消去や接続確認だけでは失敗表示を解除しません。表示にファイル名・URL・エラー原文は含めません。
 
 ### 自動同期エラー確認機能を含むビルドへの更新
 

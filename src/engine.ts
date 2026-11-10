@@ -1,6 +1,6 @@
 import {
   type BlobRef, type Conflict, type ConflictKind, type Entry, type LocalStore, type RecoveryStore,
-  type RemoteFile, type RemoteStore, type StateStore, type SyncReport, type SyncState,
+  type RemoteFile, type RemoteStore, type StateStore, type SyncProgress, type SyncReport, type SyncState,
   EditorDeferredError, PreconditionError,
 } from './contracts';
 import { decode, encode, equal, hash, message } from './bytes';
@@ -57,7 +57,7 @@ export class SyncEngine {
     if (this.settings(path) && path.toLowerCase().endsWith('.json')) JSON.parse(decode(data));
   }
 
-  async sync(): Promise<SyncReport> {
+  async sync(onProgress?: (progress: SyncProgress) => void | Promise<void>): Promise<SyncReport> {
     return this.exclusive(async () => {
       await this.verify();
       const deferred: string[] = [];
@@ -77,6 +77,18 @@ export class SyncEngine {
       const next = cursor === undefined ? 0 : paths.findIndex(path => path > cursor);
       const start = next < 0 ? 0 : next;
       const ordered = [...paths.slice(start), ...paths.slice(0, start)];
+      let processed = 0;
+      const emitProgress = (): void => {
+        if (!onProgress) return;
+        const progress: SyncProgress = Object.freeze({ processed, total: ordered.length });
+        try {
+          const pending = onProgress(progress);
+          if (pending) void Promise.resolve(pending).catch(() => undefined);
+        } catch {
+          // Progress observers are advisory and must never affect reconciliation.
+        }
+      };
+      emitProgress();
       let lastCompleted = cursor;
       let offset = 0;
       let interrupted = false;
@@ -127,7 +139,11 @@ export class SyncEngine {
             if (error instanceof EditorDeferredError) deferred.push(path);
             else report.errors.push({ path, message: message(error) });
           }
-          finally { lastCompleted = path; }
+          finally {
+            lastCompleted = path;
+            processed++;
+            emitProgress();
+          }
         }
         offset = end;
       }

@@ -21,6 +21,8 @@ import {
   writeExclusive,
 } from './package-io.mjs';
 import {
+  BRIDGE_VERSION,
+  BRIDGE_ARCHIVE_SHA256,
   BRIDGE_DISTRIBUTION_FILES,
   RELEASE_VERSION,
   SOURCE_ARCHIVE_NAME,
@@ -36,7 +38,7 @@ export { RELEASE_VERSION };
 
 export const RELEASE_TAG = `v${RELEASE_VERSION}`;
 export const RELEASE_TOP_LEVEL = 'ObsidianCore-Sync';
-export const BRIDGE_ARCHIVE_NAME = `vaultsync_bridge-${RELEASE_VERSION}.zip`;
+export const BRIDGE_ARCHIVE_NAME = `vaultsync_bridge-${BRIDGE_VERSION}.zip`;
 export const RELEASE_MANIFEST_NAME = 'release-manifest.json';
 export const RELEASE_RESULT_NAME = 'release-result.json';
 export const RELEASE_KIND = 'local-release-candidate';
@@ -209,9 +211,8 @@ export function validateReleaseMetadata(snapshot) {
     pluginManifest: parse('manifest.json'),
     bridgeInfoXml: new TextDecoder('utf-8', { fatal: true }).decode(bridgeInfo),
   });
-  if (metadata.pluginVersion !== RELEASE_VERSION || metadata.bridgeVersion !== RELEASE_VERSION) {
-    fail('Release metadata versions must both be 0.1.0');
-  }
+  if (metadata.pluginVersion !== RELEASE_VERSION) fail(`Release plugin metadata version must be ${RELEASE_VERSION}`);
+  if (metadata.bridgeVersion !== BRIDGE_VERSION) fail(`Release Bridge metadata version must be ${BRIDGE_VERSION}`);
   return metadata;
 }
 
@@ -242,6 +243,16 @@ async function assertOptionalBuildOutput(relative, rootDevice) {
   }
 }
 
+export function validateBridgeArchiveIdentity(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > MAX_RELEASE_ASSET_BYTES) {
+    fail('Bridge archive must contain bounded bytes');
+  }
+  if (sha256(bytes) !== BRIDGE_ARCHIVE_SHA256) {
+    fail(`Bridge ${BRIDGE_VERSION} archive differs from its published asset; do not reuse the version for changed contents`);
+  }
+  return true;
+}
+
 async function createBridgeArchive(outputDirectory, rootDevice, snapshot) {
   const entries = BRIDGE_DISTRIBUTION_FILES.map((relative) => {
     if (!relative.startsWith(BRIDGE_RELATIVE_ROOT)) fail(`Bridge distribution path escaped its root: ${relative}`);
@@ -250,6 +261,7 @@ async function createBridgeArchive(outputDirectory, rootDevice, snapshot) {
   });
   const zipEntries = entries.map((entry) => ({ ...entry, path: `vaultsync_bridge/${entry.path}` }));
   const zipBytes = createZipBytes(zipEntries, { maxTotalBytes: MAX_RELEASE_ASSET_BYTES });
+  validateBridgeArchiveIdentity(zipBytes);
   await writeExclusive(outputDirectory, BRIDGE_ARCHIVE_NAME, zipBytes, rootDevice);
   const verified = await verifyZipArchive({
     archivePath: path.join(outputDirectory, BRIDGE_ARCHIVE_NAME),

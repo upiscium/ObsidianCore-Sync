@@ -312,7 +312,7 @@ export class VaultSyncSettingTab extends PluginSettingTab {
     licenseLink.textContent = 'GNU AGPL v3 全文（外部サイト）';
     licenseLink.href = 'https://www.gnu.org/licenses/agpl-3.0.html';
     licenseLink.rel = 'noopener noreferrer';
-    text(legal, 'ライセンス全文・第三者通知はmain.js末尾にも含まれます。対応ソースは同じ配布場所のObsidianCore-Sync-source-0.1.0.zipにあります。未公開のローカル版は提供元から受け取ってください。この画面の表示では通信しません。', 'p', 'vaultsync-help');
+    text(legal, `ライセンス全文・第三者通知はmain.js末尾にも含まれます。対応ソースは同じ配布場所のObsidianCore-Sync-source-${this.host.plugin.manifest.version}.zipにあります。未公開のローカル版は提供元から受け取ってください。この画面の表示では通信しません。`, 'p', 'vaultsync-help');
     text(root, '転送方式、接続先、対象範囲、履歴を設定します。WebDAV と Nextcloud Bridge は別々の同期状態を使います。切り替えても既存の同期基準・競合・履歴は自動移行も削除もされません。変更後は設定を保存してから接続を確認してください。', 'p', 'vaultsync-help');
     text(root, 'Nextcloud Bridge は34.0.1の通常・非暗号化ホーム領域向けの実験版です。サーバー側で内容のSHA-256を確認し、Nextcloud自身のロックと組み合わせて条件付き更新を行います。端末側でも受信内容を検証します。本番環境や未検証構成の安全性を保証するものではありません。通常のWebDAV方式は、変更後も同じETagを返すNextcloud構成では使用しないでください。', 'p', 'vaultsync-warning');
     text(root, '新版Bridgeの内容ハッシュ一括取得に対応している場合、未変更ファイルの本文転送を省きます。ただしサーバー側のハッシュ計算と端末側の内容確認は必要です。旧サーバーでは本文取得へ戻るため、まずテストVaultで手動同期し、通信量と所要時間を確認してください。', 'p', 'vaultsync-warning');

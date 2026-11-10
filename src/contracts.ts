@@ -87,6 +87,9 @@ export interface RecoveryStore {
 export interface MergeHunk { base: string; local: string; remote: string }
 export type MergeResult = { clean: true; text: string } | { clean: false; hunks: MergeHunk[]; preview: string; parts: (string | { hunk: number })[] };
 export interface ScopeOptions { excludes: string[]; settingsFiles: string[]; configDir: string; pluginId: string }
+/** Examined paths in the validated, policy-filtered plan, not successful transfers.
+ * Includes unchanged/deleted/conflicted/skipped/deferred/error paths once attempted. */
+export interface SyncProgress { readonly processed: number; readonly total: number }
 export interface SyncReport {
   interrupted?: boolean;
   startedAt: number;

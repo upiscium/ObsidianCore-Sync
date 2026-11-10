@@ -19,6 +19,7 @@ import {
   validateRegularFileStat,
   validateSameFileIdentity,
 } from '../scripts/package-test.mjs';
+import { BRIDGE_VERSION, RELEASE_VERSION } from '../scripts/release-files.mjs';
 import { createZipBytes, verifyZipBytes } from '../scripts/package-io.mjs';
 
 const sampleRecords = () => PACKAGE_PAYLOADS.map(({ destination }) => ({
@@ -43,8 +44,9 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('local-test package validators', () => {
   it('uses the local-only ObsidianCore Sync archive brand without renaming legacy payload paths', () => {
-    expect(PACKAGE_TOP_LEVEL).toBe('ObsidianCore-Sync-local-test-0.1.0');
-    expect(PACKAGE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-local-test-0.1.0.zip');
+    expect(PACKAGE_VERSION).toBe(RELEASE_VERSION);
+    expect(PACKAGE_TOP_LEVEL).toBe('ObsidianCore-Sync-local-test-0.1.1');
+    expect(PACKAGE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-local-test-0.1.1.zip');
     expect(PACKAGE_PAYLOADS).toHaveLength(21);
     expect(PACKAGE_PAYLOADS.map(({ destination }) => destination)).toContain('obsidian/vaultsync/manifest.json');
     expect(PACKAGE_PAYLOADS.map(({ destination }) => destination)).toContain('nextcloud/vaultsync_bridge/appinfo/info.xml');
@@ -74,7 +76,7 @@ describe('local-test package validators', () => {
       'THIRD_PARTY_NOTICES.txt',
       'START-HERE.md',
       'DEVICE-TEST-CHECKLIST.md',
-      'ObsidianCore-Sync-source-0.1.0.zip',
+      'ObsidianCore-Sync-source-0.1.1.zip',
     ]);
     expect(Object.isFrozen(PACKAGE_PAYLOADS)).toBe(true);
     expect(PACKAGE_PAYLOADS.every(Object.isFrozen)).toBe(true);
@@ -87,7 +89,7 @@ describe('local-test package validators', () => {
     expect(manifest.publicRelease).toBe(false);
     expect(manifest.integrity).toEqual({ algorithm: 'SHA-256', purpose: 'integrity-only-not-authenticity' });
     expect(manifest.pluginVersion).toBe(PACKAGE_VERSION);
-    expect(manifest.bridgeVersion).toBe(PACKAGE_VERSION);
+    expect(manifest.bridgeVersion).toBe(BRIDGE_VERSION);
     expect(manifest.minObsidianVersion).toBe(MIN_OBSIDIAN_VERSION);
     expect(manifest.nextcloudSupport.exactVersion).toBe(NEXTCLOUD_EXACT_VERSION);
   });
@@ -178,18 +180,18 @@ describe('local-test package validators', () => {
     const metadata = sampleMetadata();
     expect(validatePackageMetadata(metadata)).toEqual({
       pluginVersion: PACKAGE_VERSION,
-      bridgeVersion: PACKAGE_VERSION,
+      bridgeVersion: BRIDGE_VERSION,
       minObsidianVersion: MIN_OBSIDIAN_VERSION,
       nextcloudVersion: NEXTCLOUD_EXACT_VERSION,
     });
     for (const mutate of [
-      (value) => { value.packageJson.version = '0.1.1'; },
+      (value) => { value.packageJson.version = '0.1.2'; },
       (value) => { value.packageJson.author = 'other'; },
       (value) => { value.packageJson.license = 'MIT'; },
       (value) => { delete value.packageLock.packages[''].license; },
       (value) => { value.packageLock.packages[''].license = 'MIT'; },
       (value) => { value.packageLock.version = 'v0.1.0'; },
-      (value) => { value.packageLock.packages[''].version = '0.1.1'; },
+      (value) => { value.packageLock.packages[''].version = '0.1.2'; },
       (value) => { value.pluginManifest.id = 'other'; },
       (value) => { value.pluginManifest.name = 'VaultSync'; },
       (value) => { value.pluginManifest.name = 'Unexpected Plugin Name'; },
@@ -199,6 +201,7 @@ describe('local-test package validators', () => {
       (value) => { value.bridgeInfoXml = value.bridgeInfoXml.replace('vaultsync_bridge', 'wrong_bridge'); },
       (value) => { value.bridgeInfoXml = value.bridgeInfoXml.replace('AGPL-3.0-or-later', 'AGPL'); },
       (value) => { value.bridgeInfoXml = value.bridgeInfoXml.replace('<author>upiscium</author>', '<author>other</author>'); },
+      (value) => { value.bridgeInfoXml = value.bridgeInfoXml.replace('<version>0.1.0</version>', '<version>0.1.1</version>'); },
     ]) {
       const invalid = structuredClone(metadata);
       mutate(invalid);
@@ -234,7 +237,8 @@ describe('local-test package validators', () => {
   it('rejects version, release, support, and hash-claim manifest mismatches', () => {
     const good = createPackageManifest(sampleRecords());
     for (const [key, value] of [
-      ['pluginVersion', '0.1.1'],
+      ['pluginVersion', '0.1.2'],
+      ['bridgeVersion', '0.1.1'],
       ['bridgeVersion', '0.2.0'],
       ['minObsidianVersion', '1.8.6'],
       ['releaseKind', 'public'],

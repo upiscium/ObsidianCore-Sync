@@ -15,7 +15,11 @@ import {
   writeExclusive,
 } from './package-io.mjs';
 
-export const RELEASE_VERSION = '0.1.0';
+export const RELEASE_VERSION = '0.1.1';
+export const BRIDGE_VERSION = '0.1.0';
+// Immutable Bridge asset published with v0.1.0. A client-only release must not
+// silently replace the same-version server archive with different bytes.
+export const BRIDGE_ARCHIVE_SHA256 = 'c8f0f57e4a6e0ce64f473fb733281769eadf0b9d9710ceb18675e77bfbe2e7fe';
 export const SOURCE_TOP_LEVEL = `ObsidianCore-Sync-source-${RELEASE_VERSION}`;
 export const SOURCE_ARCHIVE_NAME = `${SOURCE_TOP_LEVEL}.zip`;
 export const SOURCE_FILE_MAX_BYTES = 32 * 1024 * 1024;
@@ -57,6 +61,7 @@ const SRC_FILES = [
   'src/recovery.ts',
   'src/scheduler.ts',
   'src/settings.ts',
+  'src/sync-status.ts',
   'src/ui-api.ts',
   'src/ui.ts',
   'src/webdav.ts',
@@ -96,6 +101,7 @@ const TEST_FILES = [
   'tests/diagnostics.test.ts',
   'tests/engine-deferred.test.ts',
   'tests/engine-performance.test.ts',
+  'tests/engine-progress.test.ts',
   'tests/engine-regression.test.ts',
   'tests/engine.test.ts',
   'tests/helpers.ts',
@@ -113,6 +119,7 @@ const TEST_FILES = [
   'tests/scheduler.test.ts',
   'tests/settings.test.ts',
   'tests/storage-helper.ts',
+  'tests/sync-status.test.ts',
   'tests/webdav.test.ts',
   'tests/bundle-notices.test.mjs',
 ];

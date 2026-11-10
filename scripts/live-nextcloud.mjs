@@ -305,9 +305,77 @@ async function guiTest(baseUrl, certFile) {
       { id: 'vaultsync', name: 'ObsidianCore Sync' });
     assert.equal(await cdp.evaluate('app.commands.commands["vaultsync:sync-now"].name'), 'ObsidianCore Sync: 今すぐ同期');
     assert.equal(await cdp.evaluate('app.plugins.plugins.vaultsync.manifest.author'), 'upiscium');
-    const sync = await cdp.evaluate('app.plugins.plugins.vaultsync.syncNow()');
+    const clientVersion = await cdp.evaluate('app.plugins.plugins.vaultsync.manifest.version');
+    assert.equal(clientVersion, '0.1.1');
+    const syncWithStatusProof = await cdp.evaluate(`(async () => {
+      const plugin = app.plugins.plugins.vaultsync;
+      const statusElement = plugin.status;
+      const descriptor = Object.getOwnPropertyDescriptor(statusElement, "setText");
+      const originalSetText = statusElement.setText;
+      if (typeof originalSetText !== "function") throw new Error("The actual Obsidian status item has no text setter.");
+      const writes = [];
+      const wrapper = function (...args) {
+        const result = Reflect.apply(originalSetText, this, args);
+        writes.push({ requested: String(args[0] ?? ""), rendered: statusElement.textContent ?? "" });
+        return result;
+      };
+      let installed = false;
+      try {
+        Object.defineProperty(statusElement, "setText", descriptor && "value" in descriptor
+          ? { ...descriptor, value: wrapper }
+          : { configurable: true, enumerable: descriptor?.enumerable ?? false, writable: true, value: wrapper });
+        installed = true;
+        if (statusElement.setText !== wrapper) throw new Error("Could not observe the actual Obsidian status setter.");
+        const sync = await plugin.syncNow();
+        const prefix = plugin.manifest.name + ": ";
+        const expected = [
+          prefix + "同期中（対象確認中）",
+          prefix + "同期中 0/1 ファイル",
+          prefix + "同期中 1/1 ファイル",
+          prefix + "履歴整理中 1/1 ファイル",
+          prefix + "競合 0",
+        ];
+        let cursor = 0;
+        for (const write of writes) if (write.rendered === expected[cursor]) cursor++;
+        const actualDomTextMatchesSetter = writes.every(write => write.requested === write.rendered);
+        const privateTextExcluded = writes.every(({ rendered }) =>
+          !rendered.includes("Welcome.md") && !rendered.includes("Only synthetic data."));
+        if (cursor !== expected.length || !actualDomTextMatchesSetter || !privateTextExcluded ||
+            statusElement.textContent !== expected.at(-1)) {
+          throw new Error("The real initial sync did not render the expected generic file-count and pruning status sequence.");
+        }
+        return {
+          sync,
+          statusProof: {
+            verified: true,
+            expectedSequence: expected,
+            observedWrites: writes,
+            actualDomTextMatchesSetter,
+            privateTextExcluded,
+          },
+        };
+      } finally {
+        if (installed) {
+          if (descriptor) Object.defineProperty(statusElement, "setText", descriptor);
+          else delete statusElement.setText;
+          if (statusElement.setText !== originalSetText) throw new Error("The status setter test hook was not fully restored.");
+        }
+      }
+    })()`);
+    const sync = syncWithStatusProof.sync;
+    const syncStatusProof = syncWithStatusProof.statusProof;
     assert.deepEqual(sync.errors, []);
     assert(sync.changed.includes('Welcome.md'));
+    assert.equal(syncStatusProof.verified, true);
+    assert.equal(syncStatusProof.actualDomTextMatchesSetter, true);
+    assert.equal(syncStatusProof.privateTextExcluded, true);
+    assert.deepEqual(syncStatusProof.expectedSequence, [
+      'ObsidianCore Sync: 同期中（対象確認中）',
+      'ObsidianCore Sync: 同期中 0/1 ファイル',
+      'ObsidianCore Sync: 同期中 1/1 ファイル',
+      'ObsidianCore Sync: 履歴整理中 1/1 ファイル',
+      'ObsidianCore Sync: 競合 0',
+    ]);
     const uploaded = await request({ url: `${rootUrl}Welcome.md`, method: 'GET', headers: { Authorization: auth } });
     assert.equal(uploaded.status, 200);
     assert(Buffer.from(uploaded.body).toString().includes('Only synthetic data.'));
@@ -326,7 +394,7 @@ async function guiTest(baseUrl, certFile) {
     assert((await settingsCdp.evaluate('document.body.innerText')).includes('WebDAV'));
     assert.equal(await settingsCdp.evaluate('document.querySelector(".vaultsync-title")?.textContent'), 'ObsidianCore Sync');
     assert(await settingsCdp.evaluate('document.querySelector(".vaultsync-settings-root")?.textContent.includes("Copyright (C) 2026 upiscium — AGPL-3.0-or-later")'));
-    assert(await settingsCdp.evaluate('document.querySelector(".vaultsync-settings-root")?.textContent.includes("ObsidianCore-Sync-source-0.1.0.zip")'));
+    assert(await settingsCdp.evaluate('document.querySelector(".vaultsync-settings-root")?.textContent.includes(' + JSON.stringify(`ObsidianCore-Sync-source-${clientVersion}.zip`) + ')'));
     assert(await settingsCdp.evaluate('!!document.querySelector(\'.vaultsync-settings-root a[href="https://www.gnu.org/licenses/agpl-3.0.html"][rel="noopener noreferrer"]\')'));
     assert(await settingsCdp.evaluate('Array.from(document.querySelectorAll("button")).some(b=>b.textContent==="診断情報を表示")'));
     assert(await settingsCdp.evaluate('Array.from(document.querySelectorAll("button")).some(b=>b.textContent==="自動同期エラーを確認")'));
@@ -580,22 +648,63 @@ async function guiTest(baseUrl, certFile) {
       plugin.clearAutomaticSyncError();
       const recovery = plugin.context.recovery;
       const originalPrune = recovery.prune;
+      const statusElement = plugin.status;
+      const originalSetText = statusElement.setText;
+      const originalNotify = plugin.notify;
+      const statusWrites = [];
+      const noticeCalls = [];
+      const makeHook = (target, key, original, wrapper) => ({
+        target, key, original, wrapper,
+        descriptor: Object.getOwnPropertyDescriptor(target, key),
+        installed: false,
+      });
+      const installHook = hook => {
+        const descriptor = hook.descriptor;
+        Object.defineProperty(hook.target, hook.key, descriptor && "value" in descriptor
+          ? { ...descriptor, value: hook.wrapper }
+          : { configurable: true, enumerable: descriptor?.enumerable ?? false, writable: true, value: hook.wrapper });
+        hook.installed = true;
+        if (hook.target[hook.key] !== hook.wrapper) throw new Error("A controlled GUI observation hook could not be installed.");
+      };
+      const restoreHook = hook => {
+        if (!hook.installed) return;
+        if (hook.descriptor) Object.defineProperty(hook.target, hook.key, hook.descriptor);
+        else delete hook.target[hook.key];
+        hook.installed = false;
+        if (hook.target[hook.key] !== hook.original) throw new Error("A controlled GUI observation hook was not fully restored.");
+      };
       let armed = true;
-      recovery.prune = async function () {
+      const pruneHook = makeHook(recovery, "prune", originalPrune, async function () {
         if (armed) {
           armed = false;
           throw new Error('履歴内容が変化したため整理を停止しました。');
         }
         return originalPrune.call(this);
-      };
+      });
+      const statusHook = makeHook(statusElement, "setText", originalSetText, function (...args) {
+        const result = Reflect.apply(originalSetText, this, args);
+        statusWrites.push({ requested: String(args[0] ?? ""), rendered: statusElement.textContent ?? "" });
+        return result;
+      });
+      const notifyHook = makeHook(plugin, "notify", originalNotify, function (text, ...args) {
+        const result = Reflect.apply(originalNotify, this, [text, ...args]);
+        noticeCalls.push(String(text));
+        return result;
+      });
       try {
+        installHook(pruneHook);
+        installHook(statusHook);
+        installHook(notifyHook);
         // Let the real foreground scheduler observe one controlled post-sync failure,
         // then a clean automatic run. No production guards or network responses are bypassed.
+        // The status and notify wrappers call the original Obsidian/plugin methods unchanged.
         let witnessed = false;
         while (Date.now() < deadline) {
           const saved = plugin.automaticSyncError();
           const last = plugin.diagnostics().lastSync;
-          if (!armed && saved?.errors[0]?.code === 'recovery-history-content-changed' &&
+          const retryStatusSeen = statusWrites.some(write => write.rendered.startsWith(plugin.manifest.name + ": 同期中 ") &&
+            write.rendered.includes(" ファイル · 前回自動同期失敗"));
+          if (!armed && retryStatusSeen && saved?.errors[0]?.code === 'recovery-history-content-changed' &&
               last?.source === 'automatic' && last.outcome === 'completed' && !plugin.busy()) {
             witnessed = true; break;
           }
@@ -604,6 +713,29 @@ async function guiTest(baseUrl, certFile) {
         if (!witnessed) throw new Error('A controlled automatic error followed by clean automatic sync was not observed.');
         plugin.scheduler.stop(); // Test-only pause; saving settings would deliberately clear the record.
         const saved = JSON.stringify(plugin.automaticSyncError());
+        const prefix = plugin.manifest.name + ": ";
+        const expectedFailureStatus = prefix + "自動同期失敗 · 競合 0";
+        const expectedNotice = "同期: エラー 1、スキップ 0。「自動同期エラーを確認」で記録を確認してください。";
+        const failureWrite = statusWrites.find(write => write.rendered === expectedFailureStatus);
+        const failureNotice = noticeCalls.find(text => text === expectedNotice);
+        const retryWrite = statusWrites.find(write => write.rendered.startsWith(prefix + "同期中 ") &&
+          write.rendered.includes(" ファイル · 前回自動同期失敗"));
+        const statusAfterRetry = statusElement.textContent ?? "";
+        const journalRetainedAfterRetry = Boolean(saved) && JSON.stringify(plugin.automaticSyncError()) === saved;
+        const genericStatusOnly = statusWrites.every(({ rendered }) =>
+          !rendered.includes("Welcome.md") && !rendered.includes("Automatic.md") &&
+          !rendered.includes("recovery-history-content-changed") && !rendered.includes("履歴内容が変化したため整理を停止しました。"));
+        const statusChecks = {
+          actualFailureBadgeRendered: Boolean(failureWrite && failureWrite.requested === failureWrite.rendered),
+          actualAutomaticNoticeForwarded: Boolean(failureNotice),
+          retryShowsPreviousFailure: Boolean(retryWrite && retryWrite.requested === retryWrite.rendered),
+          cleanAutomaticRetryClearsBadge: statusAfterRetry === prefix + "競合 0",
+          historicalJournalRetainedAfterRetry: journalRetainedAfterRetry,
+          statusExcludesPathsAndRawErrors: genericStatusOnly,
+        };
+        if (Object.values(statusChecks).some(value => !value)) {
+          throw new Error("The real automatic failure, retry status, cleared badge, and retained journal were not all observed.");
+        }
         const manual = await plugin.syncNow();
         if (manual.errors.length || JSON.stringify(plugin.automaticSyncError()) !== saved) {
           throw new Error('Clean manual sync did not preserve the prior automatic error.');
@@ -614,13 +746,46 @@ async function guiTest(baseUrl, certFile) {
           phase: detail.errors[0].phase, path: detail.errors[0].path, code: detail.errors[0].code,
           errors: detail.summary.errors, manualWasClean: true,
           sharedDiagnosticsExcludeDetail: !shared.includes('recovery-history-content-changed') && !shared.includes('履歴内容が変化'),
+          statusProof: {
+            failureStatus: failureWrite.rendered,
+            failureNotice,
+            retryStatus: retryWrite.rendered,
+            statusAfterRetry,
+            checks: statusChecks,
+          },
         };
-      } finally { recovery.prune = originalPrune; }
+      } finally {
+        try { restoreHook(notifyHook); }
+        finally {
+          try { restoreHook(statusHook); }
+          finally { restoreHook(pruneHook); }
+        }
+      }
     })()`);
-    assert.deepEqual(retainedAutomaticError, {
+    assert.deepEqual({
+      phase: retainedAutomaticError.phase,
+      path: retainedAutomaticError.path,
+      code: retainedAutomaticError.code,
+      errors: retainedAutomaticError.errors,
+      manualWasClean: retainedAutomaticError.manualWasClean,
+      sharedDiagnosticsExcludeDetail: retainedAutomaticError.sharedDiagnosticsExcludeDetail,
+    }, {
       phase: 'recovery-prune', path: null, code: 'recovery-history-content-changed', errors: 1,
       manualWasClean: true, sharedDiagnosticsExcludeDetail: true,
     });
+    assert.deepEqual(retainedAutomaticError.statusProof.checks, {
+      actualFailureBadgeRendered: true,
+      actualAutomaticNoticeForwarded: true,
+      retryShowsPreviousFailure: true,
+      cleanAutomaticRetryClearsBadge: true,
+      historicalJournalRetainedAfterRetry: true,
+      statusExcludesPathsAndRawErrors: true,
+    });
+    assert.equal(retainedAutomaticError.statusProof.failureStatus, 'ObsidianCore Sync: 自動同期失敗 · 競合 0');
+    assert.equal(retainedAutomaticError.statusProof.failureNotice, '同期: エラー 1、スキップ 0。「自動同期エラーを確認」で記録を確認してください。');
+    assert(retainedAutomaticError.statusProof.retryStatus.startsWith('ObsidianCore Sync: 同期中'));
+    assert(retainedAutomaticError.statusProof.retryStatus.includes(' · 前回自動同期失敗'));
+    assert.equal(retainedAutomaticError.statusProof.statusAfterRetry, 'ObsidianCore Sync: 競合 0');
     // The local viewer must not rerun sync, initialize a context, or copy anything.
     await cdp.evaluate(`(() => {
       const plugin = app.plugins.plugins.vaultsync;
@@ -705,7 +870,9 @@ async function guiTest(baseUrl, certFile) {
     assert.equal(await cdp.evaluate('app.vault.read(app.vault.getFileByPath("Automatic.md"))'), 'foreground timer test\n');
     return { tested: true, versions: version, vault,
       editorGuardFixture: 'controlled desktop synthetic editor text mismatch; not an Android or real-mobile test',
-      checks: ['isolated real Obsidian plugin load', 'native requestUrl TLS sync to real DAV', 'settings UI screenshot', 'privacy-reduced diagnostic preview excludes configured identifiers and note content', 'diagnostic copy button and generic clipboard/selection failure fallback without OS clipboard access', 'controlled source-editor deferral is private in diagnostics, produces no plugin error notice, and remains visible in the actual manual report', 'real Vault API versus external DAV conflict', 'conflict-list UI screenshot', 'merge UI desktop and narrow viewport screenshots', 'hunk selection and save through actual UI', 'foreground periodic sync at configured one-second interval', 'automatic error survives clean automatic/manual runs and can be viewed/cleared locally without sync or export', 'stop, same-build code-only replacement and reload preserve per-device settings/state and synchronized files'] };
+      statusProgressProof: syncStatusProof,
+      automaticFailureStatusProof: retainedAutomaticError.statusProof,
+      checks: ['isolated real Obsidian plugin load', 'native requestUrl TLS sync to real DAV', 'settings UI screenshot', 'privacy-reduced diagnostic preview excludes configured identifiers and note content', 'diagnostic copy button and generic clipboard/selection failure fallback without OS clipboard access', 'controlled source-editor deferral is private in diagnostics, produces no plugin error notice, and remains visible in the actual manual report', 'real Vault API versus external DAV conflict', 'conflict-list UI screenshot', 'merge UI desktop and narrow viewport screenshots', 'hunk selection and save through actual UI', 'foreground periodic sync at configured one-second interval', 'automatic error survives clean automatic/manual runs and can be viewed/cleared locally without sync or export', 'actual status-bar file counts render through sync and pruning in the Obsidian GUI', 'automatic failure status, real notice, retry badge, badge clearing, and retained journal are observed in the Obsidian GUI', 'stop, same-build code-only replacement and reload preserve per-device settings/state and synchronized files'] };
   } finally {
     if (cdp) {
       await fs.writeFile(path.join(directory, 'gui-console.json'), JSON.stringify(cdp.events, null, 2));

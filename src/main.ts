@@ -11,6 +11,7 @@ import { ObsidianLocal } from './local';
 import { SyncEngine } from './engine';
 import { decode, encode, hash, message } from './bytes';
 import { ForegroundScheduler } from './scheduler';
+import { SyncStatus } from './sync-status';
 import { desktopPathGuard, guardedAdapter, mobilePathGuard, type PathGuard } from './path-guard';
 import { AutomaticErrorModal, ConflictListModal, DiagnosticsModal, HistoryModal, ReportModal, VaultSyncSettingTab } from './ui';
 import { AutomaticErrorJournal, type AutomaticErrorOptions, type AutomaticErrorPhase, type AutomaticErrorSnapshot } from './automatic-errors';
@@ -34,6 +35,7 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
   private lastSyncSummary: SyncDiagnosticSummary | null = null;
   private lastConnectionSummary: ConnectionDiagnosticSummary | null = null;
   private readonly automaticErrors = new AutomaticErrorJournal();
+  private readonly syncStatus = new SyncStatus();
   private automaticErrorModal: AutomaticErrorModal | undefined;
 
   async onload(): Promise<void> {
@@ -73,6 +75,7 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
     this.scheduler?.stop();
     this.lastSyncSummary = null;
     this.lastConnectionSummary = null;
+    this.syncStatus.reset();
     this.automaticErrors.clear();
     this.automaticErrorModal?.close();
     this.automaticErrorModal = undefined;
@@ -130,15 +133,23 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
     new Notice(fragment, 8000);
   }
   private notifyOnce(text: string): void { if (text !== this.lastError) { this.lastError = text; this.notify(text); } }
+  private updateStatus(): void {
+    if (this.unloaded) return;
+    try {
+      // Progress updates must not repeatedly enumerate/sort all conflicts.
+      const conflicts = this.working ? 0 : Object.keys(this.context?.engine.state.conflicts ?? {}).length;
+      const deferred = this.working ? 0 : this.lastSyncSummary?.deferred ?? 0;
+      this.status?.setText(`${this.manifest.name}: ${this.syncStatus.text(this.working, conflicts, deferred)}`);
+    } catch { /* A presentation failure must not change synchronization outcomes. */ }
+  }
   private async operation<T>(run: () => Promise<T>): Promise<T> {
     if (this.working || this.unloaded) throw new Error('別の同期処理が実行中、またはプラグインが停止しています。');
     this.working = true;
-    this.status?.setText(`${this.manifest.name}: 処理中`);
+    this.updateStatus();
     try { return await run(); }
     finally {
       this.working = false;
-      const deferred = this.lastSyncSummary?.deferred ?? 0;
-      this.status?.setText(`${this.manifest.name}: 競合 ${this.conflicts().length}${deferred > 0 ? ` · 前回保留 ${deferred}` : ''}`);
+      this.updateStatus();
     }
   }
   private async getContext(): Promise<Context> {
@@ -200,6 +211,7 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
         // The save has committed, even if initializing its new context fails below.
         this.lastSyncSummary = null;
         this.lastConnectionSummary = null;
+        this.syncStatus.reset();
         this.automaticErrors.clear();
         this.automaticErrorModal?.close();
         if (copy.url && copy.username && copy.password) await this.getContext();
@@ -226,38 +238,50 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
   }
   async syncNow(source: DiagnosticSyncSource = 'manual'): Promise<SyncReport> {
     return this.operation(async () => {
+      const statusToken = this.syncStatus.begin();
+      this.updateStatus();
       const started = Date.now();
       const errorToken = this.automaticErrors.begin();
       let phase: AutomaticErrorPhase = 'context';
       let pruneErrorIndex: number | undefined;
       let report: SyncReport;
       try {
-        const context = await this.getContext();
-        phase = 'engine';
-        report = await context.engine.sync();
-        if (!this.unloaded) {
-          phase = 'recovery-prune';
-          try { await context.recovery.prune(); }
-          catch (error) {
-            pruneErrorIndex = report.errors.length;
-            report.errors.push({ path: '[復元履歴の整理]', message: message(error) });
+        try {
+          const context = await this.getContext();
+          phase = 'engine';
+          report = await context.engine.sync(progress => {
+            if (!this.unloaded && this.syncStatus.progress(statusToken, progress)) this.updateStatus();
+          });
+          if (!this.unloaded) {
+            phase = 'recovery-prune';
+            this.syncStatus.pruning(statusToken);
+            this.updateStatus();
+            try { await context.recovery.prune(); }
+            catch (error) {
+              pruneErrorIndex = report.errors.length;
+              report.errors.push({ path: '[復元履歴の整理]', message: message(error) });
+            }
+            this.lastSyncSummary = summarizeSync(report, Date.now() - started, source);
+            this.automaticErrors.recordReport(errorToken, source, report, this.automaticErrorOptions(started, pruneErrorIndex));
+            this.syncStatus.recordReport(statusToken, source, report);
           }
-          this.lastSyncSummary = summarizeSync(report, Date.now() - started, source);
-          this.automaticErrors.recordReport(errorToken, source, report, this.automaticErrorOptions(started, pruneErrorIndex));
+        } catch (error) {
+          if (!this.unloaded) {
+            this.lastSyncSummary = failedSync(Date.now() - started, source);
+            this.automaticErrors.recordFailure(errorToken, source, phase, error, this.automaticErrorOptions(started));
+            this.syncStatus.recordFailure(statusToken, source);
+          }
+          throw error;
         }
-      } catch (error) {
         if (!this.unloaded) {
-          this.lastSyncSummary = failedSync(Date.now() - started, source);
-          this.automaticErrors.recordFailure(errorToken, source, phase, error, this.automaticErrorOptions(started));
+          if (report.errors.length || report.skipped.length) this.notifyOnce(`同期: エラー ${report.errors.length}、スキップ ${report.skipped.length}。${source === 'automatic' && report.errors.length ? '「自動同期エラーを確認」で記録を確認してください。' : '手動同期の結果画面で確認してください。'}`);
+          else this.lastError = '';
+          if (report.conflicts.length) this.notifyOnce(`未解決の競合が ${report.conflicts.length} 件あります。「競合一覧を表示」から解決してください。`);
         }
-        throw error;
+        return report;
+      } finally {
+        this.syncStatus.end(statusToken);
       }
-      if (!this.unloaded) {
-        if (report.errors.length || report.skipped.length) this.notifyOnce(`同期: エラー ${report.errors.length}、スキップ ${report.skipped.length}。${source === 'automatic' && report.errors.length ? '「自動同期エラーを確認」で記録を確認してください。' : '手動同期の結果画面で確認してください。'}`);
-        else this.lastError = '';
-        if (report.conflicts.length) this.notifyOnce(`未解決の競合が ${report.conflicts.length} 件あります。「競合一覧を表示」から解決してください。`);
-      }
-      return report;
     });
   }
   private async manualSync(): Promise<void> {

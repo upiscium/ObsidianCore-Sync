@@ -1,6 +1,8 @@
-# ObsidianCore Sync 0.1.0 公開前準備
+# ObsidianCore Sync 0.1.1 公開前準備
 
-作者：`upiscium`。独自コード：`AGPL-3.0-or-later`。内部版：`0.1.0`。GitHubタグ名：`v0.1.0`。対象リポジトリ：`upiscium/ObsidianCore-Sync`。
+作者：`upiscium`。独自コード：`AGPL-3.0-or-later`。クライアント版：`0.1.1`。Bridge版：`0.1.0`（変更なし）。GitHubタグ名：`v0.1.1`。対象リポジトリ：`upiscium/ObsidianCore-Sync`。
+
+今回はクライアントのみの通常Releaseです。GAという配布区分は、実験版Bridgeの対応範囲や未検証環境の保証を拡大しません。版番号は`scripts/release-files.mjs`の`RELEASE_VERSION`と`BRIDGE_VERSION`で独立に固定・検査します。
 
 **この手順のコマンドはローカル候補を作るだけです。** Git初期化、commit、リポジトリ作成、push、tag、リリース作成、アップロードは行いません。公式Community Pluginsへの申請も対象外です。Git checkoutではクリーンなHEADと同梱ソースを照合して実際のコミットを記録します。ソースZIPの展開先など、ルートに`.git`がない場合だけ`commit: null`となります。`published: false`は生成時点の状態であり、その後のGitHub公開状況はリリースページで確認します。ハッシュは同一性の確認であり、署名や発行者認証ではありません。
 
@@ -51,17 +53,17 @@ nix shell nixpkgs#nodejs_24 nixpkgs#unzip --command node scripts/prepare-release
 | `main.js`, `manifest.json`, `styles.css` | Obsidianへ配置する3ファイル |
 | `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.txt` | プロジェクトと第三者の全文通知 |
 | `vaultsync_bridge-0.1.0.zip` | `vaultsync_bridge/`直下の9実行ファイル＋LICENSE／NOTICE／README |
-| `ObsidianCore-Sync-source-0.1.0.zip` | 同じbuildの独自ソース・lockfile・build／導入／検証手順 |
+| `ObsidianCore-Sync-source-0.1.1.zip` | クライアント0.1.1と変更のないBridge0.1.0の独自ソース・lockfile・build／導入／検証手順 |
 | `release-manifest.json` | 上記8assetsのサイズとSHA-256、照合したコミット、生成時点で未公開という記録 |
 | `release-result.json` | 相対出力先とmanifest自体のSHA-256 |
 
-BridgeのZIPにはテスト用アプリや故障注入CLIを入れません。対応ソースZIPの`tests/`や`scripts/nextcloud-proof-app/`は開発・検証用で、本番Bridgeへ配置してはいけません。
+BridgeのZIPにはテスト用アプリや故障注入CLIを入れません。0.1.1ではBridgeの12配布ファイルを変更せず、`vaultsync_bridge-0.1.0.zip`が前回の公開assetと同じbytes／SHA-256になることも確認します。既にBridge0.1.0を導入済みなら再導入は不要です。対応ソースZIPの`tests/`や`scripts/nextcloud-proof-app/`は開発・検証用で、本番Bridgeへ配置してはいけません。
 
 生成物と隔離ビルド領域は自動削除しません。隔離領域のnode_modules／npm cache／HOMEなどは配布物ではありません。**dist全体、.integration、作業領域全体をアップロードしないでください。** private状態・Vault・credentials・keys・環境ファイル・実通信trace・source mapも配布しません。古い候補を上書きしないため、今回の`release-result.json`が指す候補だけを人が選んでください。
 
 ## 対応ソースからの再ビルド
 
-ソースZIPを新しいディレクトリへ展開し、そのトップ`ObsidianCore-Sync-source-0.1.0/`でNode.js 24を使います。
+ソースZIPを新しいディレクトリへ展開し、そのトップ`ObsidianCore-Sync-source-0.1.1/`でNode.js 24を使います。
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
@@ -82,5 +84,5 @@ npm run smoke:mobile
 - AGPL全文と第三者通知を保持する。Bridge改変版をネットワーク提供するときは第13条を確認し、実際に動いている版のsourceを利用者へ明示する。
 - Windows／Androidの今回版の実機試験、WAN／長期運用、Nextcloud他版は未検証として明記する。MariaDB12.3.2の限定fixtureをNextcloud公式対応と呼ばない。
 - 対象ファイル・秘密混入・immutable commit・tag・既存remoteを改めて確認し、候補がそのcommitから作られたことを再検証する。`commit: null`を手作業で置換せず、照合可能なクリーンなGit checkoutから再生成する。
-- 内部版は`0.1.0`のまま、予定tagは`v0.1.0`。BRATを使う場合は公開後に実際のtagを確認し、版固定なら`v0.1.0`を選ぶ。未公開段階でBRAT導入可能とは案内しない。
+- クライアント内部版は`0.1.1`、tagは`v0.1.1`、Bridgeは`0.1.0`。BRATを使う場合は公開後に実際のtagを確認し、版固定なら`v0.1.1`を選ぶ。未公開段階でBRAT導入可能とは案内しない。
 - リポジトリ作成・push・tag・リリース／assets公開は、それぞれ対象を示して別途明示的な承認を得る。

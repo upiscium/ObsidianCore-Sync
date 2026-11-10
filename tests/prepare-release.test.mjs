@@ -19,6 +19,7 @@ import {
   createReleaseResult,
   runCli,
   validateBuiltBundle,
+  validateBridgeArchiveIdentity,
   validateReleaseManifest,
   validateReleaseMetadata,
   validateReleaseResult,
@@ -40,6 +41,8 @@ import {
   verifyZipBytes,
 } from '../scripts/package-io.mjs';
 import {
+  BRIDGE_VERSION,
+  BRIDGE_ARCHIVE_SHA256,
   BRIDGE_DISTRIBUTION_FILES,
   BRIDGE_RUNTIME_FILES,
   RELEASE_SOURCE_FILES,
@@ -105,23 +108,24 @@ describe('local unpublished release candidate validators', () => {
   });
 
   it('defines exact independent asset names and the isolated Bridge runtime allowlist', () => {
-    expect(RELEASE_VERSION).toBe('0.1.0');
-    expect(RELEASE_TAG).toBe('v0.1.0');
+    expect(RELEASE_VERSION).toBe('0.1.1');
+    expect(BRIDGE_VERSION).toBe('0.1.0');
+    expect(RELEASE_TAG).toBe('v0.1.1');
     expect(RELEASE_KIND).toBe('local-release-candidate');
     expect(RELEASE_TOP_LEVEL).toBe('ObsidianCore-Sync');
     expect(RELEASE_MANIFEST_NAME).toBe('release-manifest.json');
     expect(RELEASE_RESULT_NAME).toBe('release-result.json');
     expect(BRIDGE_ARCHIVE_NAME).toBe('vaultsync_bridge-0.1.0.zip');
-    expect(SOURCE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-source-0.1.0.zip');
+    expect(SOURCE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-source-0.1.1.zip');
     expect(RELEASE_ASSET_PATHS).toEqual([
       'main.js', 'manifest.json', 'styles.css', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.txt',
-      'vaultsync_bridge-0.1.0.zip', 'ObsidianCore-Sync-source-0.1.0.zip',
+      'vaultsync_bridge-0.1.0.zip', 'ObsidianCore-Sync-source-0.1.1.zip',
     ]);
     expect(BRIDGE_RUNTIME_FILES).toHaveLength(9);
     expect(BRIDGE_DISTRIBUTION_FILES).toHaveLength(12);
     expect(BRIDGE_DISTRIBUTION_FILES).not.toContain('scripts/bridge-proof-control.php');
     expect(BRIDGE_DISTRIBUTION_FILES).not.toContain('nextcloud/vaultsync_bridge/lib/ProofListener.php');
-    expect(SOURCE_TOP_LEVEL).toBe('ObsidianCore-Sync-source-0.1.0');
+    expect(SOURCE_TOP_LEVEL).toBe('ObsidianCore-Sync-source-0.1.1');
   });
 
   it('accepts a null or formatted Git source identity without claiming publication or authenticity', () => {
@@ -155,14 +159,28 @@ describe('local unpublished release candidate validators', () => {
       .toThrow(/must match the release manifest/);
   });
 
+  it('requires the unchanged Bridge ZIP bytes published with v0.1.0', async () => {
+    expect(BRIDGE_ARCHIVE_SHA256).toBe('c8f0f57e4a6e0ce64f473fb733281769eadf0b9d9710ceb18675e77bfbe2e7fe');
+    const entries = await Promise.all(BRIDGE_DISTRIBUTION_FILES.map(async relative => ({
+      path: relative.replace('nextcloud/', ''),
+      bytes: await fs.readFile(new URL(`../${relative}`, import.meta.url)),
+    })));
+    expect(validateBridgeArchiveIdentity(createZipBytes(entries))).toBe(true);
+    const changed = entries.map((entry, index) => index === 0
+      ? { ...entry, bytes: Buffer.concat([entry.bytes, Buffer.from('\n')]) }
+      : entry);
+    expect(() => validateBridgeArchiveIdentity(createZipBytes(changed))).toThrow(/differs from its published asset/);
+    expect(() => validateBridgeArchiveIdentity(Buffer.alloc(0))).toThrow(/bounded bytes/);
+  });
+
   it.each([
     ['publication claim', (manifest) => { manifest.published = true; }],
     ['wrong release kind', (manifest) => { manifest.releaseKind = 'public'; }],
-    ['wrong version', (manifest) => { manifest.version = '0.1.1'; }],
-    ['wrong tag', (manifest) => { manifest.tag = 'v0.1.1'; }],
+    ['wrong version', (manifest) => { manifest.version = '0.1.2'; }],
+    ['wrong tag', (manifest) => { manifest.tag = 'v0.1.2'; }],
     ['malformed commit', (manifest) => { manifest.commit = 'not-a-full-sha1'; }],
     ['false authenticity claim', (manifest) => { manifest.integrity.purpose = 'authenticity'; }],
-    ['unlisted source URL', (manifest) => { manifest.sourceUrl = 'https://example.invalid/tag/v0.1.0'; }],
+    ['unlisted source URL', (manifest) => { manifest.sourceUrl = 'https://example.invalid/tag/v0.1.1'; }],
     ['duplicate asset', (manifest) => { manifest.files[1].path = manifest.files[0].path; }],
     ['extra asset', (manifest) => { manifest.files[0].path = '../private/data.json'; }],
     ['invalid hash', (manifest) => { manifest.files[0].sha256 = 'nope'; }],
@@ -176,7 +194,7 @@ describe('local unpublished release candidate validators', () => {
   it('requires exact author, license, identifiers, and compatibility metadata before staging', () => {
     expect(validateReleaseMetadata(sampleMetadataSnapshot())).toEqual({
       pluginVersion: RELEASE_VERSION,
-      bridgeVersion: RELEASE_VERSION,
+      bridgeVersion: BRIDGE_VERSION,
       minObsidianVersion: '1.8.7',
       nextcloudVersion: '34.0.1',
     });
@@ -198,6 +216,20 @@ describe('local unpublished release candidate validators', () => {
     delete lock.packages[''].license;
     missingLockLicense.set('package-lock.json', Buffer.from(JSON.stringify(lock)));
     expect(() => validateReleaseMetadata(missingLockLicense)).toThrow(/root license/i);
+  });
+
+  it('accepts plugin 0.1.1 with independently pinned Bridge 0.1.0', () => {
+    const metadata = validateReleaseMetadata(sampleMetadataSnapshot());
+    expect(metadata.pluginVersion).toBe('0.1.1');
+    expect(metadata.bridgeVersion).toBe('0.1.0');
+
+    const wrongBridgeVersion = sampleMetadataSnapshot();
+    const bridgeInfo = wrongBridgeVersion.get('nextcloud/vaultsync_bridge/appinfo/info.xml').toString();
+    wrongBridgeVersion.set(
+      'nextcloud/vaultsync_bridge/appinfo/info.xml',
+      Buffer.from(bridgeInfo.replace('<version>0.1.0</version>', '<version>0.1.1</version>')),
+    );
+    expect(() => validateReleaseMetadata(wrongBridgeVersion)).toThrow(/Nextcloud bridge version must be 0\.1\.0/);
   });
 
   it('enumerates the exact source allowlist and rejects missing, extra, duplicate, and private paths', () => {
