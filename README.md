@@ -33,7 +33,7 @@ ObsidianCore Sync（旧表示名VaultSync）は、ObsidianのVaultをWebDAV経�
 
 **重要：通常のWebDAV方式では、Nextcloud 34.0.1／34.0.5／35.0.2のローカルストレージで確認したETag再利用の問題を安全に扱えません。** 検査が一度通っても問題がない保証にはなりません。この問題を検査の緩和で回避せず、**34.0.1向けには追加アプリを使う「Nextcloud Bridge（実験版）」を実装しました。**
 
-Nextcloud Bridgeは通常・非暗号化ホーム領域で、同時要求と意図的な割り込みを実通信検証しています。前段階の検証にはMariaDB `12.3.2-noble`を使うDBロック／Redisロックの両構成とLinux版Obsidian 1.13.7の記録があります。今回のステータス表示変更では、DBロック構成の実通信／Linux GUI検証を行っています。MariaDB 12.3.2はNextcloud 34の公式要件に記載された版ではなく、ローカルfixtureの成功は上流の対応表明や本番保証ではありません。SQLiteおよびApache 2.4.69 + `FileETag Digest`にも前段階の記録があります。今回の更新のWindows／Android実機検証やownCloud検証は行っていません。ユーザーからの従来版Linux↔Androidの動作報告も、今回の更新の実機検証とは区別します。独立したバックアップとテスト用Vaultを用意してください。自動同期は初期状態でOFFです。
+Nextcloud Bridgeは通常・非暗号化ホーム領域で、同時要求と意図的な割り込みを実通信検証しています。前段階の検証にはMariaDB `12.3.2-noble`を使うDBロック／Redisロックの両構成とLinux版Obsidian 1.13.7の記録があります。今回のステータス表示変更はMariaDBのDBロックで確認し、その後のXML依存更新を含む最終ビルドはSQLiteのDBロックとLinux Obsidian 1.13.7で実通信／GUI検証を行いました。依存更新後のMariaDB再試験は、テスト環境のDockerアドレスプール枯渇によりセットアップ段階で停止しており、未完了です。MariaDB 12.3.2はNextcloud 34の公式要件に記載された版ではなく、ローカルfixtureの成功は上流の対応表明や本番保証ではありません。Apache 2.4.69 + `FileETag Digest`にも前段階の記録があります。今回の更新のWindows／Android実機検証やownCloud検証は行っていません。ユーザーからの従来版Linux↔Androidの動作報告も、今回の更新の実機検証とは区別します。独立したバックアップとテスト用Vaultを用意してください。自動同期は初期状態でOFFです。
 
 ## 実装済みの機能
 

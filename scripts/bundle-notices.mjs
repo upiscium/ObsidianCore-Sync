@@ -53,12 +53,12 @@ const PACKAGE_POLICY = Object.freeze([
     source: 'https://github.com/NaturalIntelligence/anynum',
   },
   {
-    name: 'fast-xml-parser', version: '5.11.2', license: 'MIT', licensePath: 'node_modules/fast-xml-parser/LICENSE',
+    name: 'fast-xml-parser', version: '5.12.0', license: 'MIT', licensePath: 'node_modules/fast-xml-parser/LICENSE',
     sha256: '7883225d5e84a6bbb9b170c3d891b4bf6d6259cee869c86bd86381a927071745',
     source: 'https://github.com/NaturalIntelligence/fast-xml-parser',
   },
   {
-    name: 'is-unsafe', version: '2.0.2', license: 'MIT', licensePath: 'node_modules/is-unsafe/LICENSE',
+    name: 'is-unsafe', version: '2.0.3', license: 'MIT', licensePath: 'node_modules/is-unsafe/LICENSE',
     sha256: '8e75fc0e776c62ccadb8178ece8d3daa9ba7601fb0a49b2dfb0ea9a7a5c0aa07',
     source: 'https://github.com/NaturalIntelligence/is-unsafe',
   },

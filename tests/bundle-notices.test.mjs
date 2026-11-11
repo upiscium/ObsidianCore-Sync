@@ -46,6 +46,11 @@ function metafile(rootInputs, outputInputs) {
 }
 
 describe('same-build bundle notice inventory', () => {
+  it('pins the advisory-fixed XML parser and its required sanitizer dependency', () => {
+    expect(POLICY.find(({ name }) => name === 'fast-xml-parser')?.version).toBe('5.12.0');
+    expect(POLICY.find(({ name }) => name === 'is-unsafe')?.version).toBe('2.0.3');
+  });
+
   it('includes only positive bytesInOutput contributions and ignores zero-byte modules', async () => {
     const root = await temporaryRoot();
     await writeSource(root);
