@@ -38,7 +38,7 @@ export interface DiagnosticSnapshot {
   obsidianApiVersion: string | null;
   platform: 'android' | 'ios' | 'mobile' | 'desktop' | 'unknown';
   configuration: {
-    transport: 'webdav' | 'nextcloud-bridge' | 'unknown'; endpointConfigured: boolean | null;
+    transport: 'webdav' | 'warifu' | 'nextcloud-bridge' | 'unknown'; endpointConfigured: boolean | null;
     credentialsConfigured: boolean | null; vaultPathConfigured: boolean | null; automatic: boolean | null;
     intervalSeconds: number | null; maxFileMiB: number | null; effectiveFileMiB: number | null;
     historyDays: number | null; historyMiB: number | null; exclusionRuleCount: number | null; settingsFileCount: number | null;
@@ -112,8 +112,8 @@ function approvedSyncOutcome(value: unknown): SyncDiagnosticSummary['outcome'] |
     ? value
     : null;
 }
-function approvedTransport(value: unknown): 'webdav' | 'nextcloud-bridge' | 'unknown' {
-  return value === 'webdav' || value === 'nextcloud-bridge' ? value : 'unknown';
+function approvedTransport(value: unknown): 'webdav' | 'warifu' | 'nextcloud-bridge' | 'unknown' {
+  return value === 'webdav' || value === 'warifu' || value === 'nextcloud-bridge' ? value : 'unknown';
 }
 function booleanOrNull(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;

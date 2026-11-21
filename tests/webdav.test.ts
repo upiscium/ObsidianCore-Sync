@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PreconditionError, UnsafeServerError } from '../src/contracts.js';
 import { type HttpClient, WebDavStore } from '../src/webdav.js';
+import { hash } from '../src/bytes';
 import { PersistentStore } from '../src/persistence';
 import { Recovery } from '../src/recovery';
 import { SyncEngine } from '../src/engine';
@@ -16,6 +17,7 @@ interface StoredFile {
 }
 
 interface FakeOptions {
+  warifu?: boolean;
   ignoreConditions?: boolean;
   omitPutEtag?: boolean;
   weakReadEtag?: boolean;
@@ -99,7 +101,7 @@ class FakeDav {
       }
       const file: StoredFile = {
         data: new Uint8Array(request.body ?? new ArrayBuffer(0)),
-        etag: previous && this.options.preserveFileEtag ? previous.etag : this.newEtag('file'),
+        etag: this.options.warifu ? `"ncgw-sha256-${await hash(new Uint8Array(request.body ?? new ArrayBuffer(0)))}"` : previous && this.options.preserveFileEtag ? previous.etag : this.newEtag('file'),
       };
       this.files.set(path, file);
       this.pendingPostPutReads.add(path);
@@ -150,8 +152,9 @@ class FakeDav {
   };
 
   private relativePath(pathname: string): string {
-    if (!pathname.startsWith(PREFIX)) throw new Error(`Unexpected request outside vault root: ${pathname}`);
-    return pathname.slice(PREFIX.length).split('/').filter(Boolean).map(decodeURIComponent).join('/');
+    const prefix = this.options.warifu ? '/remote.php/dav/files/user/vault/' : PREFIX;
+    if (!pathname.startsWith(prefix)) throw new Error(`Unexpected request outside vault root: ${pathname}`);
+    return pathname.slice(prefix.length).split('/').filter(Boolean).map(decodeURIComponent).join('/');
   }
 
   private parent(path: string): string {
@@ -175,12 +178,12 @@ class FakeDav {
   }
 
   private response(status: number, headers: Record<string, string> = {}, body = new ArrayBuffer(0)) {
-    return { status, headers, body };
+    return { status, headers: this.options.warifu ? { ...headers, 'X-Nextcloud-Gateway': 'experimental-1' } : headers, body };
   }
 
   private href(path: string, collection: boolean): string {
     const suffix = path.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-    return `${ROOT}${suffix}${collection && suffix ? '/' : ''}`;
+    return `${this.options.warifu ? WARIFU_ROOT : ROOT}${suffix}${collection && suffix ? '/' : ''}`;
   }
 
   private multistatus(records: Array<{ path: string; collection: boolean; size: number; etag: string }>): string {
@@ -217,6 +220,63 @@ function encodedBasic(value: string): string {
   for (const byte of encoded) binary += String.fromCharCode(byte);
   return `Basic ${btoa(binary)}`;
 }
+
+const WARIFU_ROOT = 'https://dav.example/remote.php/dav/files/user/vault/';
+describe('Warifu Files DAV', () => {
+  const options = { url: WARIFU_ROOT, username: 'user', password: 'test-password', maxBytes: 1024, warifu: true };
+  it('runs the real conditional probe and rejects stale validators after a same-size edit', async () => {
+    const server = new FakeDav({ warifu: true });
+    const store = new WebDavStore(options, server.client);
+    await store.verify();
+    const first = await store.put('note.md', bytes('aaa'), null);
+    const second = await store.put('note.md', bytes('bbb'), first);
+    expect(first).not.toBe(second);
+    await expect(store.put('note.md', bytes('ccc'), first)).rejects.toThrow(PreconditionError);
+    await expect(store.delete('note.md', first)).rejects.toThrow(PreconditionError);
+    expect(await store.read('note.md')).toEqual({ data: bytes('bbb'), etag: second });
+    expect(await store.list()).toEqual([{ path: 'note.md', size: 3, etag: second }]);
+  });
+  it('rejects unmarked scope before writes, and does not interpret an unmarked 404 as absence', async () => {
+    const server = new FakeDav({ warifu: true });
+    const store = new WebDavStore(options, async req => {
+      const res = await server.client(req);
+      delete res.headers['X-Nextcloud-Gateway'];
+      return res;
+    });
+    await expect(store.verify()).rejects.toThrow(UnsafeServerError);
+    await expect(store.put('new', bytes('x'), null)).rejects.toThrow(UnsafeServerError);
+    expect(server.requests.map(r => r.method)).toEqual(['PROPFIND', 'PROPFIND']);
+    await expect(store.read('missing')).rejects.toThrow(UnsafeServerError);
+  });
+  it('refuses ordinary inventory tags, foreign write tokens and mismatched GET or PUT hashes', async () => {
+    const server = new FakeDav({ warifu: true });
+    const store = new WebDavStore(options, async req => {
+      const res = await server.client(req);
+      if (['GET', 'PUT'].includes(req.method)) res.headers.ETag = `"ncgw-sha256-${'0'.repeat(64)}"`;
+      return res;
+    });
+    await expect(store.put('note', bytes('a'), '"native-tag"')).rejects.toThrow(UnsafeServerError);
+    await expect(store.delete('note', '"native-tag"')).rejects.toThrow(UnsafeServerError);
+    expect(server.requests).toHaveLength(0);
+    await expect(store.put('note', bytes('a'), null)).rejects.toThrow(UnsafeServerError);
+    await expect(store.read('note')).rejects.toThrow(UnsafeServerError);
+    server.files.get('note')!.etag = '"vanilla"';
+    await expect(store.list()).rejects.toThrow(UnsafeServerError);
+  });
+  it('rejects wrong DAV roots', () => {
+    for (const url of [ROOT, WARIFU_ROOT.replace('/user/', '/other/'), WARIFU_ROOT.replace('vault/', '')]) {
+      expect(() => new WebDavStore({ ...options, url }, new FakeDav().client)).toThrow(UnsafeServerError);
+    }
+  });
+  it('checks an absent recovery directory using marked Depth:0, never a bare Depth:1 404', async () => {
+    const server = new FakeDav({ warifu: true });
+    const store = new WebDavStore(options, server.client);
+    await expect(store.list('.vaultsync/history')).resolves.toEqual([]);
+    expect(server.requests.map(r => [r.method, r.headers.Depth])).toEqual([['PROPFIND', '0']]);
+    const bare = new WebDavStore(options, async () => ({ status: 404, headers: {}, body: new ArrayBuffer(0) }));
+    await expect(bare.list('.vaultsync/history')).rejects.toThrow(UnsafeServerError);
+  });
+});
 
 describe('WebDavStore', () => {
   it('requires a safe HTTPS vault root and vault-relative paths', async () => {

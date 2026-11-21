@@ -4,15 +4,15 @@ ObsidianCore Sync（旧表示名VaultSync）は、ObsidianのVaultをWebDAV経�
 
 配布はGitHubのみを対象とし、公式Community Pluginsディレクトリへの申請は予定していません。リポジトリは[`upiscium/ObsidianCore-Sync`](https://github.com/upiscium/ObsidianCore-Sync)、配布物と公開状況は[GitHub Releases](https://github.com/upiscium/ObsidianCore-Sync/releases)を確認してください。ソースをローカルでビルドしただけではリリースは公開されません。
 
-作者は**upiscium**、独自クライアント・Bridge・ビルド／テストコード・文書のライセンスは**AGPL-3.0-or-later**です。クライアントの内部バージョンは`0.1.1`、GitHubタグ名は`v0.1.1`です。Bridgeは`0.1.0`のまま変更せず、この更新によるサーバーの再導入は不要です。第三者コードには元のライセンスと著作権表示を保持します。[LICENSE](LICENSE)、[NOTICE](NOTICE)、[第三者通知](THIRD_PARTY_NOTICES.txt)を参照してください。
+作者は**upiscium**、独自クライアント・Bridge・ビルド／テストコード・文書のライセンスは**AGPL-3.0-or-later**です。承認済みのクライアント内部バージョンは`0.2.0`（RCタグ `v0.2.0-rc.1`、予定GAタグ `v0.2.0`）です。Bridgeは`0.1.0`のまま変更せず、この更新によるサーバーの再導入は不要です。第三者コードには元のライセンスと著作権表示を保持します。[LICENSE](LICENSE)、[NOTICE](NOTICE)、[第三者通知](THIRD_PARTY_NOTICES.txt)を参照してください。RC配布・端末受入・GA公開の完了はこの記載を意味しません。
 
 ### ライセンスと対応ソース
 
 このプログラムはAGPLの条件に従って再配布・改変でき、法令上認められる範囲で無保証です。`main.js`末尾にもAGPL全文・プロジェクト通知・実際にbundleされた第三者ライブラリの通知全文を含めるため、Obsidianに必要な3ファイルだけを配置する場合にも表示を保持できます。設定画面にもライセンスと対応ソースの案内があります。Nextcloud本体やObsidianのライセンスは変更しません。
 
-バイナリを渡すときは、同じビルドの`ObsidianCore-Sync-source-0.1.1.zip`を同じ配布場所で無償取得できるように案内してください。ローカルテストZIPにはこのソースZIPを内包します。公開用候補はraw assetsとソースZIPを同じディレクトリへ生成します。ソースZIPは独自コードとビルド・導入手順、lockfileを含み、未改変のnpm依存はlockfileのURL・integrityで取得します。完全オフラインビルドを保証する構成ではありません。配布者は依存を含む必要な対応ソースの入手可能性を維持してください。ネットワーク経由で利用される改変版にはAGPL第13条も確認してください。
+バイナリを渡すときは、同じビルドの`ObsidianCore-Sync-source-0.2.0.zip`を同じ配布場所で無償取得できるように案内してください。ローカルテストZIPにはこのソースZIPを内包します。公開用候補はraw assetsとソースZIPを同じディレクトリへ生成します。ソースZIPは独自コードとビルド・導入手順、lockfileを含み、未改変のnpm依存はlockfileのURL・integrityで取得します。完全オフラインビルドを保証する構成ではありません。配布者は依存を含む必要な対応ソースの入手可能性を維持してください。ネットワーク経由で利用される改変版にはAGPL第13条も確認してください。
 
-ローカル候補の作り方、成果物一覧、再ビルド、公開前の確認は[公開準備手順](docs/release-preparation.md)、変更点は[CHANGELOG](CHANGELOG.md)、導入時の注意は[0.1.1リリースノート](docs/release-notes.md)を参照してください。未公開のローカル版は、対応ソースも同じ提供元から受け取ってください。
+ローカル候補の作り方と公開前の確認は[公開準備手順](docs/release-preparation.md)、変更点は[CHANGELOG](CHANGELOG.md)、導入・移行時の注意は[リリースノート](docs/release-notes.md)を参照してください。配布版は、対応ソースも同じ提供元から受け取ってください。
 
 ### 表示名と安定した識別子
 
@@ -49,7 +49,7 @@ Nextcloud Bridgeは通常・非暗号化ホーム領域で、同時要求と意�
 - デスクトップではシンボリックリンク／ジャンクション、Vault外への解決、検出できる別デバイス境界を拒否します。
 - 「自動同期エラーを確認」から、直近1件の自動同期エラー記録を端末内メモリだけで確認できます。未保存エディターによる保留だけでは自動同期エラーにせず、既存の実エラー記録も置き換えません。記録は共有用の診断JSONとは別で、ファイル保存・自動送信・クリップボードへの書き出しはしません。
 
-Gitコマンド、Cloudflare、別の調整サーバーは不要です。Nextcloud Bridge方式だけはNextcloud側への追加アプリ配置が必要です。リアルタイム共同編集、E2EE、ユーザーごとの権限管理は含みません。
+Gitコマンド、Cloudflare、別の調整サーバーは不要です。Warifu方式はNextcloud側にWarifu、Bridge方式はBridgeの配置が必要です。リアルタイム共同編集、E2EE、ユーザーごとの権限管理は含みません。
 
 ### 右下の同期ステータス（0.1.1以降）
 
@@ -59,7 +59,13 @@ Gitコマンド、Cloudflare、別の調整サーバーは不要です。Nextclo
 
 表示は端末内のメモリだけで管理し、ファイル名・接続先・エラー原文を含みません。過去の自動同期エラー記録は別管理のため、失敗表示が消えた後も保持されます。公開済み`v0.1.0`の配布物にはこの機能は含まれません。`v0.1.1`の配布状況はGitHub Releasesで確認してください。
 
-## Nextcloud 34.0.1向けの接続
+## Warifu（新規設定の既定）
+
+管理者が [Warifu v0.3.1 の導入手順](https://github.com/upiscium/Warifu/blob/v0.3.1/docs/install-nextcloud.md)と[適用範囲の確認](https://github.com/upiscium/Warifu/blob/v0.3.1/docs/check-server.md)に従って準備します。対象はNextcloud 35.0.3、64-bit PHP 8.5.12、通常の非暗号化ローカルホームです。Warifuはこの配布物には含まれません。
+
+Obsidianで「Warifu（Files）」を選び、専用フォルダーのHTTPS URL（例 `https://cloud.example/remote.php/dav/files/alice/ObsidianVault/`）、同じユーザーID、端末別アプリパスワードを設定します。自動同期OFFで接続確認と手動同期から始めます。既存WebDAV・Bridge設定は自動移行しません。内容ETagまたはWarifuの適用を確認できない場合は停止し、通常DAVにフォールバックしません。`412`は古い条件による書き込みを拒否した結果であり、無条件で再試行しません。他のクライアント自身が無条件で上書きする場合はこの保護の対象外です。
+
+## Nextcloud 34.0.1向けの接続（旧Bridge）
 
 1. [追加アプリの導入手順](nextcloud/vaultsync_bridge/README.md)に従い、`custom_apps/vaultsync_bridge`へ配置して有効化します。WebのAdmin権限に加え、ファイル配置と`occ`の実行手段が必要です。
 2. ユーザーごとに既存の専用フォルダを`allowed_roots`へ登録し、実験機能を明示的に有効にします。コアのファイルロックは無効にしないでください。
@@ -101,7 +107,7 @@ nix shell nixpkgs#nodejs_24 --command npm test
 nix shell nixpkgs#nodejs_24 nixpkgs#unzip --command node scripts/package-test.mjs --build
 ```
 
-`--build`なしでは説明だけを表示します。指定時は通常のビルドに加え、明示したソースだけを新しい隔離ディレクトリへ複製し、`npm ci --ignore-scripts`で依存を取得して再ビルドします。両方の`main.js`が完全一致しなければ配布物を生成しません。`dist/obsidian-core-sync-local-test-<一意なID>/`へZIPと`package-result.json`を新規作成します。ZIP名と内部トップフォルダー名は`ObsidianCore-Sync-local-test-0.1.1`です（ZIP名には`.zip`を付けます）。内部版`0.1.1`は公開済みという意味ではありません。`dist`内の既存パッケージや隔離ビルド領域は削除・上書きしません。作成中は信頼できる作業ディレクトリを他プロセスで変更しないでください。symlinkや別ファイルシステムを拒否する検査はありますが、同じユーザー権限の悪意ある同時差し替えを原子的に防ぐものではありません。
+`--build`なしでは説明だけを表示します。指定時は通常のビルドに加え、明示したソースだけを新しい隔離ディレクトリへ複製し、`npm ci --ignore-scripts`で依存を取得して再ビルドします。両方の`main.js`が完全一致しなければ配布物を生成しません。`dist/obsidian-core-sync-local-test-<一意なID>/`へZIPと`package-result.json`を新規作成します。ZIP名と内部トップフォルダー名は`ObsidianCore-Sync-local-test-0.2.0`です（ZIP名には`.zip`を付けます）。内部版`0.2.0`は公開済みという意味ではありません。`dist`内の既存パッケージや隔離ビルド領域は削除・上書きしません。作成中は信頼できる作業ディレクトリを他プロセスで変更しないでください。symlinkや別ファイルシステムを拒否する検査はありますが、同じユーザー権限の悪意ある同時差し替えを原子的に防ぐものではありません。
 
 ZIPにはプラグイン3ファイル、Bridge実行ファイル9個とLICENSE／NOTICE／README、プロジェクトのLICENSE／NOTICE／第三者通知、[導入・停止・復旧ガイド](docs/device-test-guide.md)、[Windows／Android試験票](docs/device-test-checklist.md)、対応ソースZIP、サイズ／SHA-256を記録するmanifestを含めます。作成後、ZIPの全エントリー・ファイル属性・展開bytesを再検査します。`.integration/`、認証情報、`data.json`、`private/`、source map、node_modulesは含めません。ソースZIPには検証用コードを含みますが、Bridge実行用フォルダーにテスト補助アプリは混入させません。ハッシュは同一性確認であり、発行者の認証や実機での成功を証明しません。
 

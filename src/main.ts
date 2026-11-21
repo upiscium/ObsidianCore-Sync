@@ -1,7 +1,7 @@
 import { apiVersion, MarkdownView, Notice, Platform, Plugin, requestUrl } from 'obsidian';
 import { EditorDeferredError, type Conflict, type HistoryEntry, type RemoteStore, type SyncReport } from './contracts';
 import type { VaultSyncHost } from './ui-api';
-import { connectionIdentity, DEFAULT_SETTINGS, type Settings, validateSettings } from './settings';
+import { connectionIdentity, DEFAULT_SETTINGS, loadSettings, type Settings, validateSettings } from './settings';
 import { ScopePolicy } from './policy';
 import { WebDavStore, type HttpClient } from './webdav';
 import { NextcloudStore } from './nextcloud';
@@ -41,7 +41,7 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
   async onload(): Promise<void> {
     try {
       const saved: unknown = await this.loadData();
-      if (saved && typeof saved === 'object') this.settings = { ...this.settings, ...saved };
+      this.settings = loadSettings(saved);
       validateSettings(this.settings, this.app.vault.configDir);
     } catch (error) {
       this.settings = { ...DEFAULT_SETTINGS, excludes: [], settingsFiles: [] };
@@ -168,7 +168,7 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
     };
     const remote: RemoteStore = this.settings.transport === 'nextcloud-bridge'
       ? new NextcloudStore({ ...this.settings, vault: this.settings.vaultPath, maxBytes }, http)
-      : new WebDavStore({ ...this.settings, maxBytes }, http);
+      : new WebDavStore({ ...this.settings, maxBytes, ...(this.settings.transport === 'warifu' ? { warifu: true } : {}) }, http);
     const policy = new ScopePolicy({ ...this.settings, configDir: this.app.vault.configDir, pluginId: this.manifest.id });
     const store = new PersistentStore(guardedAdapter(this.app.vault.adapter, guard), directory);
     const recovery = new Recovery(store, remote, this.settings.historyDays, this.settings.historyMiB * 1024 * 1024);

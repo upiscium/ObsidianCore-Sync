@@ -15,7 +15,7 @@ import {
   writeExclusive,
 } from './package-io.mjs';
 
-export const RELEASE_VERSION = '0.1.1';
+export const RELEASE_VERSION = '0.2.0';
 export const BRIDGE_VERSION = '0.1.0';
 // Immutable Bridge asset published with v0.1.0. A client-only release must not
 // silently replace the same-version server archive with different bytes.
@@ -87,6 +87,7 @@ const SCRIPT_FILES = [
   'scripts/perf-worker.ts',
   'scripts/prepare-release.mjs',
   'scripts/release-files.mjs',
+  'scripts/release-promotion.mjs',
   'scripts/release-git.mjs',
   'scripts/smoke-mobile.mjs',
   'scripts/nextcloud-proof-app/appinfo/info.xml',
@@ -114,6 +115,7 @@ const TEST_FILES = [
   'tests/persistence.test.ts',
   'tests/policy.test.ts',
   'tests/prepare-release.test.mjs',
+  'tests/release-promotion.test.mjs',
   'tests/release-git.test.mjs',
   'tests/recovery.test.ts',
   'tests/scheduler.test.ts',

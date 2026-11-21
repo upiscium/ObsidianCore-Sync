@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import {
   EditorDeferredError,
   PreconditionError,
+  UnsafeServerError,
   type Entry,
   type LocalStore,
   type RemoteStore,
@@ -26,6 +27,20 @@ const RECOVERY_QUOTA_BYTES = 4 * 1024 * 1024;
 const NOFOLLOW = constants.O_NOFOLLOW;
 type HttpClient = import('../src/webdav').HttpClient;
 type HttpRequest = Parameters<HttpClient>[0];
+
+export async function verifyPlainServerRejectsWarifu(options: {
+  url: string; username: string; password: string; http: HttpClient;
+}): Promise<void> {
+  const store = new WebDavStore({ url: options.url, username: options.username, password: options.password,
+    maxBytes: MAX_FILE_BYTES, warifu: true }, options.http);
+  try {
+    await store.verify();
+  } catch (error) {
+    if (error instanceof UnsafeServerError && error.message.includes('Warifu coverage is missing')) return;
+    throw error;
+  }
+  throw new Error('Plain Nextcloud unexpectedly passed Warifu capability verification.');
+}
 
 function jsonRequestBody(request: HttpRequest): Record<string, unknown> | undefined {
   if (request.body === undefined) return undefined;
@@ -504,6 +519,7 @@ export async function runScenarios(options: {
   http: import('../src/webdav').HttpClient;
   directory: string;
   bridge?: { baseUrl: string; vault: string };
+  warifu?: boolean;
 }): Promise<{ checks: string[]; details: Record<string, unknown> }> {
   if (!path.isAbsolute(options.directory) || options.directory.trim() !== options.directory ||
       options.directory.split(path.sep).some(segment => segment === '.' || segment === '..')) {
@@ -531,7 +547,7 @@ export async function runScenarios(options: {
       vault: options.bridge.vault,
       maxBytes: MAX_FILE_BYTES,
     }, remoteHttp)
-    : new WebDavStore({ url: options.url, username: options.username, password, maxBytes: MAX_FILE_BYTES }, remoteHttp);
+    : new WebDavStore({ url: options.url, username: options.username, password, maxBytes: MAX_FILE_BYTES, ...(options.warifu ? { warifu: true } : {}) }, remoteHttp);
   const remote = makeRemote(http);
   const checks: string[] = [];
   const check = async (title: string, operation: () => Promise<void>): Promise<void> => {

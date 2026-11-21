@@ -1,4 +1,5 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import { hash } from './bytes.js';
 import {
   PreconditionError,
   UnsafeServerError,
@@ -235,9 +236,10 @@ export class WebDavStore implements RemoteStore {
   private readonly authorization: string;
   private readonly maxBytes: number;
   private readonly http: HttpClient;
+  private readonly warifu: boolean;
 
   constructor(
-    options: { url: string; username: string; password: string; maxBytes: number },
+    options: { url: string; username: string; password: string; maxBytes: number; warifu?: boolean },
     http: HttpClient,
   ) {
     if (!options || typeof options.url !== 'string' || options.url.length === 0 || options.url.trim() !== options.url ||
@@ -269,6 +271,11 @@ export class WebDavStore implements RemoteStore {
       throw new UnsafeServerError('The WebDAV root must be an HTTPS URL without credentials, query, or fragment.');
     }
     this.rootSegments = decodeUriPath(root.pathname);
+    this.warifu = options.warifu === true;
+    if (this.warifu && !this.rootSegments.some((s, i, a) => s === 'remote.php' && a[i + 1] === 'dav' &&
+      a[i + 2] === 'files' && a[i + 3] === options.username && i + 4 < a.length)) {
+      throw new UnsafeServerError('Warifu requires a dedicated Vault folder under the authenticated user’s standard Files DAV URL.');
+    }
     if (!root.pathname.endsWith('/')) root.pathname += '/';
     this.root = root;
     this.authorization = `Basic ${utf8Base64(`${options.username}:${options.password}`)}`;
@@ -282,6 +289,14 @@ export class WebDavStore implements RemoteStore {
     }
     const recoveryInventory = prefix !== undefined;
     const startingDirectory = recoveryInventory ? [RESERVED_DIRECTORY, 'history'] : [];
+    if (this.warifu && recoveryInventory) {
+      // v0.3.1 bounds Depth:1 listings *before* setting its coverage header.
+      // For a not-yet-created history folder that yields a bare 404. Depth:0
+      // resolves the covered target first. Only a marked 404 proves absence.
+      const history = await this.resourceAt(startingDirectory);
+      if (!history) return [];
+      if (!history.isCollection) throw new UnsafeServerError('The Warifu history path is not a collection.');
+    }
     const startingKey = JSON.stringify(startingDirectory);
     const entries: Entry[] = [];
     const visitedDirectories = new Set<string>();
@@ -362,14 +377,14 @@ export class WebDavStore implements RemoteStore {
     const segments = validateVaultPath(path);
     if (!(data instanceof Uint8Array)) throw new TypeError('WebDAV data must be a Uint8Array.');
     if (data.byteLength > this.maxBytes) throw new UnsafeServerError('The file exceeds the configured maximum file size.');
-    const expected = expectedEtag === null ? null : requireStrongEtag(expectedEtag, 'The expected value');
+    const expected = expectedEtag === null ? null : this.fileTag(expectedEtag, 'The expected value');
     await this.ensureParentDirectories(segments);
     return this.putSegments(segments, data, expected);
   }
 
   async delete(path: string, expectedEtag: string): Promise<void> {
     const segments = validateVaultPath(path);
-    const etag = requireStrongEtag(expectedEtag, 'The expected value');
+    const etag = this.fileTag(expectedEtag, 'The expected value');
     await this.deleteSegments(segments, etag);
   }
 
@@ -515,7 +530,7 @@ export class WebDavStore implements RemoteStore {
   private async putSegments(segments: string[], data: Uint8Array, expectedEtag: string | null): Promise<string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/octet-stream' };
     if (expectedEtag === null) headers['If-None-Match'] = '*';
-    else headers['If-Match'] = requireStrongEtag(expectedEtag, 'The expected value');
+    else headers['If-Match'] = this.fileTag(expectedEtag, 'The expected value');
     const body = bufferFromBytes(data);
     const response = await this.request(this.fileUrl(segments), 'PUT', headers, body);
     if (response.status === 412) throw new PreconditionError();
@@ -524,6 +539,7 @@ export class WebDavStore implements RemoteStore {
     }
 
     const responseEtag = responseHeader(response.headers, 'etag');
+    if (this.warifu) return this.contentTag(responseEtag, new Uint8Array(body), 'Warifu PUT');
     if (responseEtag !== undefined) return requireStrongEtag(responseEtag, 'The WebDAV PUT response');
 
     const confirmed = await this.readSegments(segments);
@@ -539,6 +555,7 @@ export class WebDavStore implements RemoteStore {
     if (head.status === 404) return null;
     let headLength: number | undefined;
     if (head.status === 200) {
+      if (this.warifu) this.fileTag(responseHeader(head.headers, 'etag'), 'Warifu HEAD');
       headLength = parseOptionalContentLength(responseHeader(head.headers, 'content-length'), this.maxBytes, 'WebDAV HEAD');
     } else if (head.status !== 405 && head.status !== 501) {
       throw new Error(`WebDAV HEAD failed (HTTP ${head.status}).`);
@@ -564,8 +581,10 @@ export class WebDavStore implements RemoteStore {
     if (declaredLength !== undefined && declaredLength > this.maxBytes) {
       throw new UnsafeServerError('The file exceeds the configured maximum file size.');
     }
-    const etag = requireStrongEtag(responseHeader(response.headers, 'etag'), 'The WebDAV GET response');
-    return { data: new Uint8Array(response.body.slice(0)), etag };
+    const data = new Uint8Array(response.body.slice(0));
+    const tag = responseHeader(response.headers, 'etag');
+    const etag = this.warifu ? await this.contentTag(tag, data, 'Warifu GET') : requireStrongEtag(tag, 'The WebDAV GET response');
+    return { data, etag };
   }
 
   private async deleteSegments(segments: string[], expectedEtag: string): Promise<void> {
@@ -721,6 +740,7 @@ export class WebDavStore implements RemoteStore {
         if (typeof properties.getetag !== 'string') throw new Error('The WebDAV multistatus returned a malformed ETag.');
         etag = properties.getetag.trim();
       }
+      if (this.warifu && !isCollection) etag = this.fileTag(etag, 'Warifu PROPFIND');
       resources.push({ segments, isCollection, contentLength, etag });
     }
     return resources;
@@ -738,7 +758,36 @@ export class WebDavStore implements RemoteStore {
       headers: { Authorization: this.authorization, ...headers },
     };
     if (body !== undefined) request.body = body;
-    return this.http(request);
+    if (this.warifu && ['PUT', 'MKCOL', 'DELETE'].includes(method)) {
+      // Confirm scope *before* changing even the disposable probe namespace.
+      // In v0.3.1 enrollment of a collection covers its descendants. Deployment
+      // changes still require quiescing writers; this is not a server-side lease.
+      const parent = new URL('.', url.endsWith('/') ? url.slice(0, -1) : url);
+      const parentSegments = decodeUriPath(parent.pathname).slice(this.rootSegments.length);
+      const current = await this.resourceAt(parentSegments);
+      if (!current?.isCollection) throw new UnsafeServerError('Warifu parent collection is unavailable.');
+    }
+    const response = await this.http(request);
+    if (this.warifu && (response.status < 300 || response.status === 404) &&
+        responseHeader(response.headers, 'X-Nextcloud-Gateway') !== 'experimental-1') {
+      // An unmarked 404 is not evidence that a synchronized file was deleted.
+      throw new UnsafeServerError('Warifu coverage is missing for this Files DAV request. Synchronization stopped.');
+    }
+    return response;
+  }
+
+  private fileTag(value: string | undefined, context: string): string {
+    const tag = requireStrongEtag(value, context);
+    if (this.warifu && !/^"ncgw-sha256-[0-9a-f]{64}"$/.test(tag)) {
+      throw new UnsafeServerError(`${context} did not provide a Warifu content ETag.`);
+    }
+    return tag;
+  }
+
+  private async contentTag(value: string | undefined, data: Uint8Array, context: string): Promise<string> {
+    const tag = this.fileTag(value, context);
+    if (tag !== `"ncgw-sha256-${await hash(data)}"`) throw new UnsafeServerError(`${context} content does not match its ETag.`);
+    return tag;
   }
 
   private fileUrl(segments: string[]): string {

@@ -24,6 +24,11 @@ assert.equal(await fs.realpath(artifacts), path.join(await fs.realpath(repo), '.
 assert.equal((await fs.stat(artifacts)).dev, (await fs.stat(repo)).dev, 'Artifacts must remain on the repository filesystem');
 const backend = process.env.VAULTSYNC_TEST_BACKEND || 'nextcloud';
 const bridge = process.env.VAULTSYNC_TEST_BRIDGE === '1';
+const warifu = process.env.VAULTSYNC_TEST_WARIFU === '1';
+const dedicatedUser = bridge || warifu;
+assert(!warifu || backend === 'nextcloud', 'Warifu tests require Nextcloud');
+assert(!warifu || !bridge, 'Warifu tests cannot be combined with Bridge');
+assert(!warifu || process.env.VAULTSYNC_TEST_GUI_ONLY !== '1', 'Warifu qualification exercises the sync scenarios');
 assert(!bridge || backend === 'nextcloud', 'Bridge tests require Nextcloud');
 assert(['nextcloud', 'apache'].includes(backend));
 const databaseMode = selectDatabaseMode({ backend, bridge, requested: process.env.VAULTSYNC_TEST_DB });
@@ -34,13 +39,15 @@ const id = path.basename(directory).toLowerCase();
 const name = `vaultsync-${id}`;
 const image = process.env.VAULTSYNC_TEST_IMAGE || (backend === 'apache'
   ? 'httpd:2.4@sha256:c6b7745aa371570cc8460a9f08c39989583d4aa7bc8e3ed8bd77a492803ea704'
-  : 'nextcloud:35-apache@sha256:6b015097ca6c30f97d172365f886c27f865e16f8e6ac2d1e80bc1433bc2580da');
+  : warifu ? 'nextcloud:35.0.3-apache@sha256:8a7a65b8bae82a79568fec2ed9cf3e374a1944eda2a22ebe130d79463336fee3'
+    : 'nextcloud:35-apache@sha256:6b015097ca6c30f97d172365f886c27f865e16f8e6ac2d1e80bc1433bc2580da');
 assert(/@sha256:[a-f0-9]{64}$/.test(image), 'The test image must be pinned by digest, including overrides');
+if (warifu) assert.equal(image, 'nextcloud:35.0.3-apache@sha256:8a7a65b8bae82a79568fec2ed9cf3e374a1944eda2a22ebe130d79463336fee3');
 const username = 'vaultsync-test';
 const loginPassword = randomBytes(24).toString('hex');
 let password = loginPassword;
-const adminUsername = bridge ? 'vaultsync-admin' : username;
-const adminPassword = bridge ? randomBytes(24).toString('hex') : password;
+const adminUsername = dedicatedUser ? 'vaultsync-admin' : username;
+const adminPassword = dedicatedUser ? randomBytes(24).toString('hex') : password;
 const redisPassword = randomBytes(24).toString('hex');
 const useRedis = bridge && process.env.VAULTSYNC_TEST_REDIS === '1';
 const redisName = `${name}-redis`;
@@ -52,7 +59,7 @@ const networkName = useMariaDb ? databaseNetworkName(id) : undefined;
 const frontendNetworkName = useMariaDb ? `${name}-frontend` : undefined;
 const report = { directory, name, image, backend, startedAt: new Date().toISOString(), checks: [], gui: { tested: false }, errors: [] };
 report.databaseMode = backend === 'nextcloud' ? databaseMode : null;
-report.transport = bridge ? 'nextcloud-bridge-v1' : 'webdav';
+report.transport = warifu ? 'warifu-v0.3.1' : bridge ? 'nextcloud-bridge-v1' : 'webdav';
 report.runtime = { node: process.version, platform: process.platform, architecture: process.arch };
 report.artifactsSha256 = Object.fromEntries(await Promise.all(['main.js', 'manifest.json', 'styles.css'].map(async file =>
   [file, createHash('sha256').update(await fs.readFile(path.join(repo, file))).digest('hex')],
@@ -74,6 +81,30 @@ const command = async (program, args, options = {}) => {
     throw new Error(redact(error.message));
   }
 };
+const warifuArchiveSha256 = '52dfa3713c45169018eea397fd5e272de0e0402c930560e88e542280bffaf9af';
+const warifuReleaseUrl = 'https://github.com/upiscium/Warifu/releases/download/v0.3.1/nextcloud_gateway-0.3.1.tar.gz';
+async function obtainWarifuArchive() {
+  const supplied = process.env.VAULTSYNC_TEST_WARIFU_ARCHIVE;
+  const archive = path.join(directory, 'nextcloud_gateway-0.3.1.tar.gz');
+  if (supplied) await fs.copyFile(path.resolve(supplied), archive, fs.constants.COPYFILE_EXCL);
+  else {
+    const response = await fetch(warifuReleaseUrl, { signal: AbortSignal.timeout(30_000) });
+    assert.equal(response.status, 200, 'Warifu release archive download failed');
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(bytes.length, 43103, 'Unexpected Warifu release archive size');
+    await fs.writeFile(archive, bytes, { flag: 'wx', mode: 0o600 });
+  }
+  const bytes = await fs.readFile(archive);
+  assert.equal(bytes.length, 43103, 'Unexpected Warifu release archive size');
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), warifuArchiveSha256, 'Warifu release archive SHA256 mismatch');
+  const members = (await command('tar', ['-tzf', archive])).split('\n').filter(Boolean);
+  assert(members.length && members.every(member => member.startsWith('nextcloud_gateway/') && !member.startsWith('/') && !member.split('/').includes('..')),
+    'Warifu archive contains an unexpected member path');
+  assert(members.includes('nextcloud_gateway/appinfo/info.xml'), 'Warifu archive lacks appinfo/info.xml');
+  assert(!(await command('tar', ['-tvzf', archive])).split('\n').some(line => /^[lh]/.test(line)), 'Warifu archive must not contain links');
+  report.warifuArchive = { source: supplied ? 'operator-supplied' : warifuReleaseUrl, bytes: bytes.length, sha256: warifuArchiveSha256 };
+  return archive;
+}
 console.log(`Artifacts: ${directory}`);
 
 async function verifyLocalDocker() {
@@ -306,7 +337,7 @@ async function guiTest(baseUrl, certFile) {
     assert.equal(await cdp.evaluate('app.commands.commands["vaultsync:sync-now"].name'), 'ObsidianCore Sync: 今すぐ同期');
     assert.equal(await cdp.evaluate('app.plugins.plugins.vaultsync.manifest.author'), 'upiscium');
     const clientVersion = await cdp.evaluate('app.plugins.plugins.vaultsync.manifest.version');
-    assert.equal(clientVersion, '0.1.1');
+    assert.equal(clientVersion, '0.2.0');
     const syncWithStatusProof = await cdp.evaluate(`(async () => {
       const plugin = app.plugins.plugins.vaultsync;
       const statusElement = plugin.status;
@@ -911,7 +942,16 @@ try {
     dockerArgs.push('-v', `${ini}:/usr/local/etc/php/conf.d/zzz-vaultsync-diagnostics.ini:ro`, '-v', `${path.join(repo, 'scripts/bridge-http-diagnostics.php')}:/tmp/vaultsync-http-diagnostics.php:ro`);
   }
   if (backend === 'nextcloud') {
-    if (bridge) dockerArgs.push('--tmpfs', '/var/www/html:rw,size=2g',
+    if (dedicatedUser) dockerArgs.push('--tmpfs', '/var/www/html:rw,size=2g');
+    if (warifu) {
+      const archive = await obtainWarifuArchive();
+      const extracted = path.join(directory, 'warifu-app');
+      await fs.mkdir(extracted, { mode: 0o700 });
+      await command('tar', ['-xzf', archive, '-C', extracted, '--no-same-owner', '--no-same-permissions']);
+      assert((await fs.stat(path.join(extracted, 'nextcloud_gateway/appinfo/info.xml'))).isFile());
+      dockerArgs.push('-v', `${extracted}/nextcloud_gateway:/var/www/html/custom_apps/nextcloud_gateway:ro`);
+    }
+    if (bridge) dockerArgs.push(
       '-v', `${path.join(repo, 'nextcloud/vaultsync_bridge')}:/var/www/html/custom_apps/vaultsync_bridge:ro`,
       '-v', `${path.join(repo, 'scripts/nextcloud-proof-app')}:/var/www/html/custom_apps/vaultsync_proof:ro`,
       '-v', `${path.join(repo, 'scripts/bridge-lock-holder.php')}:/tmp/vaultsync-lock-holder.php:ro`,
@@ -992,7 +1032,7 @@ Alias "/remote.php/dav/files/${username}/" "/usr/local/apache2/htdocs/"
   let ready = false;
   for (let i = 0; i < 180; i++) {
     try {
-      if (bridge) {
+      if (dedicatedUser) {
         status = JSON.parse(await command('docker', ['exec', '-u', 'www-data', name, 'php', 'occ', 'status', '--output=json']));
         if (status.installed && !status.maintenance && status.needsDbUpgrade === false && (await command('docker', ['logs', name])).includes('Initializing finished')) { ready = true; break; }
         await wait(1000);
@@ -1051,6 +1091,19 @@ Alias "/remote.php/dav/files/${username}/" "/usr/local/apache2/htdocs/"
       await wait(1000);
     }
   }
+  if (warifu) {
+    assert.equal(status.versionstring, '35.0.3');
+    const occ = (...args) => command('docker', ['exec', '-u', 'www-data', name, 'php', 'occ', ...args]);
+    assert(!Object.hasOwn(JSON.parse(await occ('app:list', '--output=json')).enabled, 'nextcloud_gateway'));
+    await command('docker', ['exec', '-u', 'www-data', '-e', `OC_PASS=${loginPassword}`, name, 'php', 'occ', 'user:add', '--password-from-env', username]);
+    const user = JSON.parse(await occ('user:info', username, '--output=json'));
+    assert(Array.isArray(user.groups) && !user.groups.includes('admin'));
+    const output = await command('docker', ['exec', '-u', 'www-data', '-e', `NC_PASS=${loginPassword}`, name, 'php', 'occ', 'user:auth-tokens:add', '--password-from-env', '--name=Warifu fixture', username]);
+    const token = output.match(/app password:\s*([A-Za-z0-9]{32,})/i)?.[1];
+    assert(token, 'Warifu fixture requires a generated app password');
+    password = token;
+    report.clientAuthentication = 'synthetic non-admin user with generated app password';
+  }
   proxy = https.createServer({ key: await fs.readFile(keyFile), cert: await fs.readFile(certFile) }, (incoming, outgoing) => {
     const forwarded = http.request({ hostname: '127.0.0.1', port: backendPort, path: incoming.url, method: incoming.method, headers: { ...incoming.headers, 'x-forwarded-proto': 'https' } }, response => {
       outgoing.writeHead(response.statusCode, response.headers); response.pipe(outgoing);
@@ -1069,9 +1122,15 @@ Alias "/remote.php/dav/files/${username}/" "/usr/local/apache2/htdocs/"
   report.scenarioBundleSha256 = createHash('sha256').update(await fs.readFile(bundle)).digest('hex');
   const testDirectory = path.join(directory, 'core-devices');
   await fs.mkdir(testDirectory);
-  const { runScenarios } = await import(pathToFileURL(bundle).href);
+  const { runScenarios, verifyPlainServerRejectsWarifu } = await import(pathToFileURL(bundle).href);
+  if (warifu) {
+    await verifyPlainServerRejectsWarifu({ url: rootUrl, username, password, http: request });
+    report.warifuPlainServerRejectedBeforeEnable = true;
+    await command('docker', ['exec', '-u', 'www-data', name, 'php', 'occ', 'app:enable', 'nextcloud_gateway']);
+    await command('docker', ['exec', name, 'apachectl', '-k', 'graceful']);
+  }
   if (process.env.VAULTSYNC_TEST_GUI_ONLY !== '1') {
-    const result = await runScenarios({ url: rootUrl, baseUrl, username, password, http: request, directory: testDirectory, container: name, expectedLocking: useRedis ? 'redis' : 'database' });
+    const result = await runScenarios({ url: rootUrl, baseUrl, username, password, http: request, directory: testDirectory, container: name, warifu, expectedLocking: useRedis ? 'redis' : 'database' });
     report.checks = result.checks; report.details = result.details;
     if (bridge) {
       const integrationUrl = `${baseUrl}/remote.php/dav/files/${username}/IntegrationVault/`;
@@ -1085,7 +1144,7 @@ Alias "/remote.php/dav/files/${username}/" "/usr/local/apache2/htdocs/"
       report.engineIntegration = await module.runScenarios({ url: integrationUrl, username, password, http: request, directory: integrationDirectory, bridge: { baseUrl, vault: 'IntegrationVault' } });
     }
   }
-  if (process.env.VAULTSYNC_TEST_GUI !== '0') {
+  if (!warifu && process.env.VAULTSYNC_TEST_GUI !== '0') {
     try { report.gui = await guiTest(baseUrl, certFile); }
     catch (error) { report.gui = { tested: false, error: redact(error.stack || String(error)) }; console.error(redact(`GUI check failed: ${error.message}`)); process.exitCode = 1; }
   }

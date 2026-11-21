@@ -1,6 +1,6 @@
 import { ScopePolicy, validatePath } from './policy';
 
-export type Transport = 'webdav' | 'nextcloud-bridge';
+export type Transport = 'webdav' | 'warifu' | 'nextcloud-bridge';
 
 export interface Settings {
   transport: Transport;
@@ -17,7 +17,7 @@ export interface Settings {
   maxFileMiB: number;
 }
 export const DEFAULT_SETTINGS: Settings = {
-  transport: 'webdav', url: '', vaultPath: '', username: '', password: '', automatic: false, intervalSeconds: 30,
+  transport: 'warifu', url: '', vaultPath: '', username: '', password: '', automatic: false, intervalSeconds: 30,
   excludes: [], settingsFiles: [], historyDays: 30, historyMiB: 1024, maxFileMiB: 25,
 };
 
@@ -27,10 +27,20 @@ function normalizedBaseUrl(rawUrl: string): string {
   return url.href;
 }
 
+/** Only a new installation gets the new default; old saves predate the transport field. */
+export function loadSettings(saved: unknown): Settings {
+  const defaults = { ...DEFAULT_SETTINGS, excludes: [], settingsFiles: [] };
+  if (saved == null) return defaults;
+  if (typeof saved !== 'object' || Array.isArray(saved)) throw new Error('保存済みの設定形式が不正です。');
+  return { ...defaults, ...saved, transport: Object.hasOwn(saved, 'transport')
+    ? (saved as { transport: Transport }).transport : 'webdav' };
+}
+
 /** Stable per-transport identity; bridge state must never share raw-DAV validators. */
 export function connectionIdentity(settings: Settings): string {
   const baseUrl = normalizedBaseUrl(settings.url);
   if (settings.transport === 'webdav') return `${baseUrl}\n${settings.username}`;
+  if (settings.transport === 'warifu') return `warifu-v1\n${JSON.stringify([baseUrl, settings.username])}`;
   if (settings.transport === 'nextcloud-bridge') {
     return `nextcloud-bridge-v1\n${JSON.stringify([baseUrl, settings.username, settings.vaultPath])}`;
   }
@@ -40,7 +50,7 @@ export function connectionIdentity(settings: Settings): string {
 export function validateSettings(settings: Settings, configDir: string): void {
   if (!settings || typeof settings.url !== 'string' || typeof settings.username !== 'string' ||
     typeof settings.password !== 'string' || typeof settings.automatic !== 'boolean' ||
-    (settings.transport !== 'webdav' && settings.transport !== 'nextcloud-bridge') ||
+    (settings.transport !== 'webdav' && settings.transport !== 'warifu' && settings.transport !== 'nextcloud-bridge') ||
     typeof settings.vaultPath !== 'string') throw new Error('接続設定の形式が不正です。');
 
   if (settings.transport === 'nextcloud-bridge') {

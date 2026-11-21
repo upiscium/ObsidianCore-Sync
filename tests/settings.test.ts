@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { connectionIdentity, DEFAULT_SETTINGS, type Settings, validateSettings } from '../src/settings';
+import { connectionIdentity, DEFAULT_SETTINGS, loadSettings, type Settings, validateSettings } from '../src/settings';
 
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
   const settings: Settings = {
@@ -11,12 +11,14 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 }
 
 describe('settings defaults and validation', () => {
-  it('defaults to WebDAV and merges legacy saved settings without requiring new fields', () => {
-    expect(DEFAULT_SETTINGS.transport).toBe('webdav');
+  it('defaults only new installs to Warifu; preserves implicit legacy WebDAV', () => {
+    expect(DEFAULT_SETTINGS.transport).toBe('warifu');
     expect(DEFAULT_SETTINGS.vaultPath).toBe('');
 
     const legacySavedSettings = { url: 'https://dav.example.net/ObsidianVault/', username: 'alice' };
-    const merged = { ...DEFAULT_SETTINGS, ...legacySavedSettings };
+    expect(loadSettings(null)).toMatchObject({ transport: 'warifu', automatic: false });
+    expect(() => validateSettings(loadSettings(null), '.obsidian')).not.toThrow();
+    const merged = loadSettings(legacySavedSettings);
     expect(merged).toMatchObject({ transport: 'webdav', vaultPath: '', url: legacySavedSettings.url });
     expect(() => validateSettings(merged, '.obsidian')).not.toThrow();
   });
@@ -24,6 +26,14 @@ describe('settings defaults and validation', () => {
   it('rejects an unsupported transport', () => {
     const invalid = { ...makeSettings(), transport: 'sftp' as never };
     expect(() => validateSettings(invalid, '.obsidian')).toThrow(/接続設定の形式/);
+  });
+
+  it('validates Warifu HTTPS folder URLs and assigns an isolated endpoint identity', () => {
+    const warifu = makeSettings({ transport: 'warifu', url: 'https://files.example/remote.php/dav/files/alice/Vault/', username: 'alice' });
+    expect(() => validateSettings(warifu, '.obsidian')).not.toThrow();
+    expect(connectionIdentity(warifu)).toMatch(/^warifu-v1\n/);
+    expect(connectionIdentity(warifu)).not.toBe(connectionIdentity({ ...warifu, transport: 'webdav' }));
+    expect(() => validateSettings({ ...warifu, url: 'http://files.example/Vault' }, '.obsidian')).toThrow(/HTTPS/);
   });
 
   it('requires a valid HTTPS base URL and safe non-empty vault path for the bridge', () => {
@@ -61,7 +71,7 @@ describe('settings defaults and validation', () => {
 
 describe('connectionIdentity', () => {
   it('preserves the historical normalized WebDAV identity, including its trailing slash', () => {
-    const configured = makeSettings({ url: 'HTTPS://EXAMPLE.COM:443/dav', username: 'alice' });
+    const configured = makeSettings({ transport: 'webdav', url: 'HTTPS://EXAMPLE.COM:443/dav', username: 'alice' });
     expect(connectionIdentity(configured)).toBe('https://example.com/dav/\nalice');
   });
 

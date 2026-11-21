@@ -313,14 +313,15 @@ export class VaultSyncSettingTab extends PluginSettingTab {
     licenseLink.href = 'https://www.gnu.org/licenses/agpl-3.0.html';
     licenseLink.rel = 'noopener noreferrer';
     text(legal, `ライセンス全文・第三者通知はmain.js末尾にも含まれます。対応ソースは同じ配布場所のObsidianCore-Sync-source-${this.host.plugin.manifest.version}.zipにあります。未公開のローカル版は提供元から受け取ってください。この画面の表示では通信しません。`, 'p', 'vaultsync-help');
-    text(root, '転送方式、接続先、対象範囲、履歴を設定します。WebDAV と Nextcloud Bridge は別々の同期状態を使います。切り替えても既存の同期基準・競合・履歴は自動移行も削除もされません。変更後は設定を保存してから接続を確認してください。', 'p', 'vaultsync-help');
+    text(root, '転送方式、接続先、対象範囲、履歴を設定します。Warifu、WebDAV、Nextcloud Bridge は別々の同期状態を使います。切り替えても既存の同期基準・競合・履歴は自動移行も削除もされません。変更後は設定を保存してから接続を確認してください。', 'p', 'vaultsync-help');
     text(root, 'Nextcloud Bridge は34.0.1の通常・非暗号化ホーム領域向けの実験版です。サーバー側で内容のSHA-256を確認し、Nextcloud自身のロックと組み合わせて条件付き更新を行います。端末側でも受信内容を検証します。本番環境や未検証構成の安全性を保証するものではありません。通常のWebDAV方式は、変更後も同じETagを返すNextcloud構成では使用しないでください。', 'p', 'vaultsync-warning');
     text(root, '新版Bridgeの内容ハッシュ一括取得に対応している場合、未変更ファイルの本文転送を省きます。ただしサーバー側のハッシュ計算と端末側の内容確認は必要です。旧サーバーでは本文取得へ戻るため、まずテストVaultで手動同期し、通信量と所要時間を確認してください。', 'p', 'vaultsync-warning');
 
     const connection = section(root, '接続設定');
-    const transportLabel = fieldLabel(connection, '転送方式', 'モードを変更すると別の同期状態に切り替わります。変更後は設定を保存してから接続を確認してください。');
+    const transportLabel = fieldLabel(connection, '転送方式', '新規設定では Warifu を推奨します。Files の HTTPS Vault フォルダー URL とアプリパスワードを使用します。転送方式の変更は別の同期状態への明示的な切り替えであり、自動移行・自動フォールバックはしません。');
     const transport = element('select', transportLabel, 'vaultsync-input');
     for (const [value, label] of [
+      ['warifu', 'Warifu（Files）'],
       ['webdav', 'WebDAV'],
       ['nextcloud-bridge', 'Nextcloud Bridge（実験版）'],
     ] as const) {
@@ -331,15 +332,16 @@ export class VaultSyncSettingTab extends PluginSettingTab {
     transport.value = this.draft.transport;
 
     const webdavUrlHelp = 'HTTPS の WebDAV URL を指定してください。この Vault 専用の既存フォルダーを使い、アカウント全体のルートや認証情報を含む URL は使用しないでください。';
+    const warifuUrlHelp = 'Files が表示する、この Vault 専用フォルダーの完全な HTTPS WebDAV URL を指定してください。';
     const bridgeUrlHelp = 'HTTPS の Nextcloud インストールのベース URL を指定してください。WebDAV のフォルダー URL や OCS の API URL ではありません。認証情報・クエリ・フラグメントは含めないでください。';
     const urlField = textFieldWithDynamicHelp(
       connection,
       'HTTPS 接続先 URL',
       this.draft.url,
-      this.draft.transport === 'nextcloud-bridge' ? bridgeUrlHelp : webdavUrlHelp,
+      this.draft.transport === 'nextcloud-bridge' ? bridgeUrlHelp : this.draft.transport === 'warifu' ? warifuUrlHelp : webdavUrlHelp,
       (value) => { this.draft.url = value; },
       'url',
-      this.draft.transport === 'nextcloud-bridge' ? 'https://cloud.example/nextcloud/' : 'https://dav.example.net/ObsidianVault/',
+      this.draft.transport === 'nextcloud-bridge' ? 'https://cloud.example/nextcloud/' : 'https://cloud.example/remote.php/dav/files/alice/Vault/',
     );
     const vaultPath = textField(
       connection,
@@ -353,9 +355,9 @@ export class VaultSyncSettingTab extends PluginSettingTab {
     const bridgeInstructions = text(connection, 'サーバー側コンパニオンアプリはこの設定画面からインストールされません。管理者がアプリのファイルを Nextcloud の custom_apps/vaultsync_bridge に配置して有効化し、各ユーザーの許可ルートを `occ user:setting <ユーザー> vaultsync_bridge allowed_roots \'["ObsidianVault"]\'` で設定してください。実験機能の有効化は管理者が `occ config:app:set vaultsync_bridge experimental_enabled --value=yes` を明示的に実行する必要があります。', 'p', 'vaultsync-help');
     const updateTransportFields = () => {
       const isBridge = transport.value === 'nextcloud-bridge';
-      this.draft.transport = isBridge ? 'nextcloud-bridge' : 'webdav';
-      urlField.help.textContent = isBridge ? bridgeUrlHelp : webdavUrlHelp;
-      urlField.input.placeholder = isBridge ? 'https://cloud.example/nextcloud/' : 'https://dav.example.net/ObsidianVault/';
+      this.draft.transport = isBridge ? 'nextcloud-bridge' : transport.value === 'warifu' ? 'warifu' : 'webdav';
+      urlField.help.textContent = isBridge ? bridgeUrlHelp : this.draft.transport === 'warifu' ? warifuUrlHelp : webdavUrlHelp;
+      urlField.input.placeholder = isBridge ? 'https://cloud.example/nextcloud/' : this.draft.transport === 'warifu' ? 'https://cloud.example/remote.php/dav/files/alice/Vault/' : 'https://dav.example.net/ObsidianVault/';
       vaultPath.disabled = !isBridge;
       bridgeInstructions.hidden = !isBridge;
     };

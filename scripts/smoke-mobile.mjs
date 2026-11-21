@@ -45,9 +45,10 @@ const obsidian = {
       return { status: 200, headers: {}, arrayBuffer: new TextEncoder().encode(JSON.stringify({ ocs: { meta: { status: 'ok', statuscode: 200 }, data } })).buffer };
     }
     assert.equal(request.method, 'PROPFIND');
-    assert.equal(request.url, 'https://mobile.example.test/vault/');
-    const body = new TextEncoder().encode('<d:multistatus xmlns:d="DAV:"><d:response><d:href>/vault/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>');
-    return { status: 207, headers: {}, arrayBuffer: body.buffer };
+    const folder = '/remote.php/dav/files/test/vault/';
+    assert.equal(request.url, `https://mobile.example.test${folder}`);
+    const body = new TextEncoder().encode(`<d:multistatus xmlns:d="DAV:"><d:response><d:href>${folder}</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>`);
+    return { status: 207, headers: { 'X-Nextcloud-Gateway': 'experimental-1' }, arrayBuffer: body.buffer };
   },
 };
 const module = { exports: {} };
@@ -82,14 +83,15 @@ const currentManifest = JSON.parse(await readFile(new URL('../manifest.json', im
 assert.equal(currentManifest.id, 'vaultsync');
 assert.equal(currentManifest.name, 'ObsidianCore Sync');
 assert.equal(currentManifest.author, 'upiscium');
-assert.equal(currentManifest.version, '0.1.1');
+assert.equal(currentManifest.version, '0.2.0');
 plugin.manifest = currentManifest;
 let statusText = '';
 const statusUpdates = [];
 plugin.status = { setText(value) { statusText = value; statusUpdates.push(value); } };
 plugin.notify('display-name probe');
 assert.equal(notices.at(-1), 'ObsidianCore Sync: display-name probe');
-plugin.settings = { ...plugin.settings, url: 'https://mobile.example.test/vault/', username: 'test', password: 'not-a-real-credential' };
+assert.equal(plugin.settings.transport, 'warifu');
+plugin.settings = { ...plugin.settings, url: 'https://mobile.example.test/remote.php/dav/files/test/vault/', username: 'test', password: 'not-a-real-credential' };
 const beforeUnloadedPreview = { adapterCalls, httpCalls };
 const initialDiagnostics = plugin.diagnostics();
 assert.equal(initialDiagnostics.schema, 'vaultsync-diagnostics-v2');
@@ -398,7 +400,7 @@ assert.equal(lateScheduleConfigurations, 0, 'A settings commit completing after 
 const legacy = new Plugin();
 legacy.app = plugin.app;
 legacy.manifest = { ...currentManifest, name: 'VaultSync' };
-legacy.settings = { ...legacy.settings, url: 'https://mobile.example.test/rename-fixture/', username: 'legacy-user', password: 'synthetic-only' };
+legacy.settings = { ...legacy.settings, transport: 'webdav', url: 'https://mobile.example.test/rename-fixture/', username: 'legacy-user', password: 'synthetic-only' };
 const legacyContext = await legacy.getContext();
 const legacyBytes = new TextEncoder().encode('same-device legacy common base');
 const legacyRef = await legacyContext.store.store(legacyBytes);
