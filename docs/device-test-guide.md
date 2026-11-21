@@ -1,6 +1,6 @@
 # ObsidianCore Sync 0.2.0 — Warifu対応RCの端末試験ガイド
 
-承認済み版は内部版 `0.2.0`、RCタグ `v0.2.0-rc.1`、予定GAタグ `v0.2.0` です。このガイドと受入票はローカル試験ZIPでは `START-HERE.md` と `DEVICE-TEST-CHECKLIST.md`、対応ソースでは `docs/device-test-guide.md` と `docs/device-test-checklist.md` です。**RCを試験するときはRCとして配布された3ファイルを使います。** ローカルビルドや別の試験ZIPでの成功はRCの受入になりません。候補がまだ配布されていなければ、票を未実施のままにしてください。
+内部版 `0.2.0`、今回のRCタグ `v0.2.0-rc.2`、予定GAタグ `v0.2.0` です。このガイドと受入票はローカル試験ZIPでは `START-HERE.md` と `DEVICE-TEST-CHECKLIST.md`、対応ソースでは `docs/device-test-guide.md` と `docs/device-test-checklist.md` です。**RCを試験するときはRCとして配布された3ファイルを使います。** ローカルビルドや別の試験ZIPでの成功はRCの受入になりません。候補がまだ配布されていなければ、票を未実施のままにしてください。
 
 ## 受入前に用意するもの
 
@@ -9,6 +9,8 @@
 - リリース担当から別保管のRCタグ、対象commit、`release-manifest.json` の期待SHA-256を受け取ります。RCのダウンロード元とタグを確認し、manifestの実測SHA-256・記載commitを期待値と照合してから、その `files` に対して3ファイルの実測SHA-256を照合します。Linuxでは `sha256sum release-manifest.json main.js manifest.json styles.css`、PowerShellでは `Get-FileHash -Algorithm SHA256 -Path release-manifest.json,main.js,manifest.json,styles.css`。端末で実際に配置した3点も照合します。`manifest.json` はプラグインの情報、`release-manifest.json` は配布物一覧です。試験ZIPの `package-manifest.json` は代用できません。不一致・期待値不明ならインストールせず停止します。
 
 ## RCで行う5項目
+
+`rc.2` はApacheの標準の圧縮設定のまま試験してください。特にRC-4では、サーバーに本文が届いただけでは不十分です。履歴の読取・整理を含む各手動同期の結果を確認し、想定した競合以外のエラーがあれば停止します。
 
 | ID | 操作と観察点 |
 | --- | --- |

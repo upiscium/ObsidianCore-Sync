@@ -4,7 +4,7 @@ ObsidianCore Sync（旧表示名VaultSync）は、ObsidianのVaultをWebDAV経�
 
 配布はGitHubのみを対象とし、公式Community Pluginsディレクトリへの申請は予定していません。リポジトリは[`upiscium/ObsidianCore-Sync`](https://github.com/upiscium/ObsidianCore-Sync)、配布物と公開状況は[GitHub Releases](https://github.com/upiscium/ObsidianCore-Sync/releases)を確認してください。ソースをローカルでビルドしただけではリリースは公開されません。
 
-作者は**upiscium**、独自クライアント・Bridge・ビルド／テストコード・文書のライセンスは**AGPL-3.0-or-later**です。承認済みのクライアント内部バージョンは`0.2.0`（RCタグ `v0.2.0-rc.1`、予定GAタグ `v0.2.0`）です。Bridgeは`0.1.0`のまま変更せず、この更新によるサーバーの再導入は不要です。第三者コードには元のライセンスと著作権表示を保持します。[LICENSE](LICENSE)、[NOTICE](NOTICE)、[第三者通知](THIRD_PARTY_NOTICES.txt)を参照してください。RC配布・端末受入・GA公開の完了はこの記載を意味しません。
+作者は**upiscium**、独自クライアント・Bridge・ビルド／テストコード・文書のライセンスは**AGPL-3.0-or-later**です。クライアント内部版は`0.2.0`（今回のRCタグ `v0.2.0-rc.2`、予定GAタグ `v0.2.0`）です。Bridgeは`0.1.0`のまま変更せず、この更新によるサーバーの再導入は不要です。第三者コードには元のライセンスと著作権表示を保持します。[LICENSE](LICENSE)、[NOTICE](NOTICE)、[第三者通知](THIRD_PARTY_NOTICES.txt)を参照してください。RC配布・端末受入・GA公開の完了はこの記載を意味しません。
 
 ### ライセンスと対応ソース
 

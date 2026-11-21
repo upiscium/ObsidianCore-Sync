@@ -184,6 +184,13 @@ function requireStrongEtag(value: string | undefined, context: string): string {
   return etag;
 }
 
+function requireIdentityEncoding(headers: Record<string, string>, context: string): void {
+  const coding = responseHeader(headers, 'Content-Encoding');
+  if (coding !== undefined && coding.toLowerCase() !== 'identity') {
+    throw new UnsafeServerError(`${context} did not return the requested identity representation.`);
+  }
+}
+
 function parseOptionalContentLength(value: string | undefined, maxBytes: number, context: string): number | undefined {
   if (value === undefined) return undefined;
   if (!/^\d+$/.test(value)) throw new UnsafeServerError(`${context} returned an invalid Content-Length.`);
@@ -551,19 +558,29 @@ export class WebDavStore implements RemoteStore {
 
   private async readSegments(segments: string[]): Promise<RemoteFile | null> {
     const url = this.fileUrl(segments);
-    const head = await this.request(url, 'HEAD');
+    // Obsidian can deliver decoded bytes with a compressed variant's length and ETag,
+    // and reuse GET response headers for HEAD. Negotiate the same uncoded file on
+    // both reads, even when a cache still contains an older compressed response.
+    const headers: Record<string, string> = this.warifu
+      ? { 'Accept-Encoding': 'identity', 'Cache-Control': 'no-cache, no-store' }
+      : {};
+    const head = await this.request(url, 'HEAD', headers);
     if (head.status === 404) return null;
     let headLength: number | undefined;
     if (head.status === 200) {
-      if (this.warifu) this.fileTag(responseHeader(head.headers, 'etag'), 'Warifu HEAD');
+      if (this.warifu) {
+        requireIdentityEncoding(head.headers, 'Warifu HEAD');
+        this.fileTag(responseHeader(head.headers, 'etag'), 'Warifu HEAD');
+      }
       headLength = parseOptionalContentLength(responseHeader(head.headers, 'content-length'), this.maxBytes, 'WebDAV HEAD');
     } else if (head.status !== 405 && head.status !== 501) {
       throw new Error(`WebDAV HEAD failed (HTTP ${head.status}).`);
     }
 
-    const response = await this.request(url, 'GET');
+    const response = await this.request(url, 'GET', headers);
     if (response.status === 404) return null;
     if (response.status !== 200) throw new Error(`WebDAV GET failed (HTTP ${response.status}).`);
+    if (this.warifu) requireIdentityEncoding(response.headers, 'Warifu GET');
     const declaredLength = parseOptionalContentLength(
       responseHeader(response.headers, 'content-length'),
       this.maxBytes,

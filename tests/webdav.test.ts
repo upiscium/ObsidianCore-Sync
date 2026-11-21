@@ -30,6 +30,7 @@ interface FakeOptions {
   customPropfind?: string;
   customStatus?: (method: string, path: string) => number | undefined;
   addOptional404Propstat?: boolean;
+  contentEncoding?: string;
 }
 
 class FakeDav {
@@ -125,6 +126,7 @@ class FakeDav {
           ? this.options.getLengthOverride ?? file.data.byteLength
           : this.options.headLengthOverride ?? file.data.byteLength),
       };
+      if (this.options.contentEncoding !== undefined) headers['Content-Encoding'] = this.options.contentEncoding;
       return this.response(200, headers, method === 'GET' ? this.arrayBuffer(file.data) : new ArrayBuffer(0));
     }
 
@@ -235,6 +237,56 @@ describe('Warifu Files DAV', () => {
     await expect(store.delete('note.md', first)).rejects.toThrow(PreconditionError);
     expect(await store.read('note.md')).toEqual({ data: bytes('bbb'), etag: second });
     expect(await store.list()).toEqual([{ path: 'note.md', size: 3, etag: second }]);
+  });
+  it('opts Warifu HEAD/GET reads into identity and no-cache without changing PROPFIND', async () => {
+    const server = new FakeDav({ warifu: true });
+    server.files.set('note.md', { data: bytes('# note'), etag: `"ncgw-sha256-${await hash(bytes('# note'))}"` });
+    const store = new WebDavStore(options, server.client);
+    await store.verify();
+    await expect(store.read('note.md')).resolves.toMatchObject({ data: bytes('# note') });
+    const history = '.vaultsync/history/00000000-0000-4000-8000-000000000001.json';
+    const metadata = bytes('{"revision":1}');
+    server.files.set(history, { data: metadata, etag: `"ncgw-sha256-${await hash(metadata)}"` });
+    await expect(store.read(history)).resolves.toMatchObject({ data: metadata });
+    await store.list();
+    const reads = server.requests.filter(request => ['GET', 'HEAD'].includes(request.method));
+    expect(reads.length).toBeGreaterThanOrEqual(2);
+    for (const request of reads) {
+      expect(request.headers['Accept-Encoding']).toBe('identity');
+      expect(request.headers['Cache-Control']).toBe('no-cache, no-store');
+    }
+    for (const request of server.requests.filter(request => !['GET', 'HEAD'].includes(request.method))) {
+      expect(request.headers['Accept-Encoding']).toBeUndefined();
+      expect(request.headers['Cache-Control']).toBeUndefined();
+    }
+  });
+  it('fails closed on encoded Warifu read responses without retrying', async () => {
+    for (const method of ['HEAD', 'GET']) {
+      const server = new FakeDav({ warifu: true, contentEncoding: 'gzip' });
+      const data = bytes('valid decoded bytes');
+      server.files.set('note.md', { data, etag: `"ncgw-sha256-${await hash(data)}"` });
+      const store = new WebDavStore(options, server.client);
+      // Isolate each response phase: a HEAD encoding failure must not reach GET.
+      if (method === 'GET') {
+        const client = async (request: Parameters<HttpClient>[0]) => {
+          const response = await server.client(request);
+          if (request.method === 'HEAD') delete response.headers['Content-Encoding'];
+          return response;
+        };
+        await expect(new WebDavStore(options, client).read('note.md')).rejects.toThrow(/identity/i);
+      } else {
+        await expect(store.read('note.md')).rejects.toThrow(/identity/i);
+      }
+      expect(server.requests.filter(request => request.method === method)).toHaveLength(1);
+      expect(server.requests.filter(request => request.method === (method === 'HEAD' ? 'GET' : 'HEAD'))).toHaveLength(method === 'HEAD' ? 0 : 1);
+    }
+  });
+  it.each([405, 501])('still requires an identity GET when HEAD is unavailable (%i)', async status => {
+    const data = bytes('metadata');
+    const server = new FakeDav({ warifu: true, contentEncoding: 'gzip', customStatus: method => method === 'HEAD' ? status : undefined });
+    server.files.set('note.md', { data, etag: `"ncgw-sha256-${await hash(data)}"` });
+    await expect(new WebDavStore(options, server.client).read('note.md')).rejects.toThrow(/identity/i);
+    expect(server.requests.map(r => [r.method, r.headers['Accept-Encoding']])).toEqual([['HEAD', 'identity'], ['GET', 'identity']]);
   });
   it('rejects unmarked scope before writes, and does not interpret an unmarked 404 as absence', async () => {
     const server = new FakeDav({ warifu: true });
@@ -405,6 +457,17 @@ describe('WebDavStore', () => {
     server.options.weakReadEtag = true;
     await expect(store.read('weak.md')).rejects.toThrow(UnsafeServerError);
     await expect(store.delete('weak.md', 'W/"weak"')).rejects.toThrow(UnsafeServerError);
+  });
+
+  it('leaves ordinary WebDAV HEAD and GET representation negotiation unchanged', async () => {
+    const server = new FakeDav();
+    server.files.set('plain.md', { data: bytes('ordinary'), etag: '"dav"' });
+    expect((await makeStore(server).read('plain.md'))?.data).toEqual(bytes('ordinary'));
+    expect(server.requests.map(request => request.method)).toEqual(['HEAD', 'GET']);
+    for (const { headers } of server.requests) {
+      expect(headers['Accept-Encoding']).toBeUndefined();
+      expect(headers['Cache-Control']).toBeUndefined();
+    }
   });
 
   it('checks HEAD size before GET and checks the returned body size', async () => {
