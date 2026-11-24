@@ -4,15 +4,15 @@ ObsidianCore Sync（旧表示名VaultSync）は、ObsidianのVaultをWebDAV経�
 
 配布はGitHubのみを対象とし、公式Community Pluginsディレクトリへの申請は予定していません。リポジトリは[`upiscium/ObsidianCore-Sync`](https://github.com/upiscium/ObsidianCore-Sync)、配布物と公開状況は[GitHub Releases](https://github.com/upiscium/ObsidianCore-Sync/releases)を確認してください。ソースをローカルでビルドしただけではリリースは公開されません。
 
-作者は**upiscium**、独自クライアント・Bridge・ビルド／テストコード・文書のライセンスは**AGPL-3.0-or-later**です。クライアントの内部バージョンは`0.1.1`、GitHubタグ名は`v0.1.1`です。Bridgeは`0.1.0`のまま変更せず、この更新によるサーバーの再導入は不要です。第三者コードには元のライセンスと著作権表示を保持します。[LICENSE](LICENSE)、[NOTICE](NOTICE)、[第三者通知](THIRD_PARTY_NOTICES.txt)を参照してください。
+作者は**upiscium**、独自クライアント・Bridge・ビルド／テストコード・文書のライセンスは**AGPL-3.0-or-later**です。クライアントの内部バージョンは`0.3.0`、GitHubタグ名は`v0.3.0`です。Bridgeは`0.1.0`のまま変更せず、この更新によるサーバーの再導入は不要です。第三者コードには元のライセンスと著作権表示を保持します。[LICENSE](LICENSE)、[NOTICE](NOTICE)、[第三者通知](THIRD_PARTY_NOTICES.txt)を参照してください。
 
 ### ライセンスと対応ソース
 
 このプログラムはAGPLの条件に従って再配布・改変でき、法令上認められる範囲で無保証です。`main.js`末尾にもAGPL全文・プロジェクト通知・実際にbundleされた第三者ライブラリの通知全文を含めるため、Obsidianに必要な3ファイルだけを配置する場合にも表示を保持できます。設定画面にもライセンスと対応ソースの案内があります。Nextcloud本体やObsidianのライセンスは変更しません。
 
-バイナリを渡すときは、同じビルドの`ObsidianCore-Sync-source-0.1.1.zip`を同じ配布場所で無償取得できるように案内してください。ローカルテストZIPにはこのソースZIPを内包します。公開用候補はraw assetsとソースZIPを同じディレクトリへ生成します。ソースZIPは独自コードとビルド・導入手順、lockfileを含み、未改変のnpm依存はlockfileのURL・integrityで取得します。完全オフラインビルドを保証する構成ではありません。配布者は依存を含む必要な対応ソースの入手可能性を維持してください。ネットワーク経由で利用される改変版にはAGPL第13条も確認してください。
+バイナリを渡すときは、同じビルドの`ObsidianCore-Sync-source-0.3.0.zip`を同じ配布場所で無償取得できるように案内してください。ローカルテストZIPにはこのソースZIPを内包します。公開用候補はraw assetsとソースZIPを同じディレクトリへ生成します。ソースZIPは独自コードとビルド・導入手順、lockfileを含み、未改変のnpm依存はlockfileのURL・integrityで取得します。完全オフラインビルドを保証する構成ではありません。配布者は依存を含む必要な対応ソースの入手可能性を維持してください。ネットワーク経由で利用される改変版にはAGPL第13条も確認してください。
 
-ローカル候補の作り方、成果物一覧、再ビルド、公開前の確認は[公開準備手順](docs/release-preparation.md)、変更点は[CHANGELOG](CHANGELOG.md)、導入時の注意は[0.1.1リリースノート](docs/release-notes.md)を参照してください。未公開のローカル版は、対応ソースも同じ提供元から受け取ってください。
+ローカル候補の作り方、成果物一覧、再ビルド、公開前の確認は[公開準備手順](docs/release-preparation.md)、変更点は[CHANGELOG](CHANGELOG.md)、導入時の注意は[リリースノート](docs/release-notes.md)を参照してください。未公開のローカル版は、対応ソースも同じ提供元から受け取ってください。
 
 ### 表示名と安定した識別子
 

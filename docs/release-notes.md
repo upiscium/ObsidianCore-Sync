@@ -1,4 +1,50 @@
-# ObsidianCore Sync v0.1.1
+# ObsidianCore Sync 0.3.0 — Apache WebDAV 正式対応リリースノート
+
+**内部版 `0.3.0`、今回のRCタグ `v0.3.0-rc.1`、予定GAタグ `v0.3.0`。** RC配布物の生成・端末受入・GA公開が完了したことを示すものではありません。対象はObsidianクライアントです。Bridgeは`0.1.0`のまま変更しません（Apacheでは使いません）。
+
+## 何が変わるか
+
+- **Apache（`mod_dav_fs` + `FileETag Digest`）を、正式に対応するサーバー構成にしました。** 通常のWebDAV方式で接続します。サーバーに追加のアプリは要りません。対応範囲、参照設定、リバースプロキシの注意、接続検査で拒否されたときの対処は[Apacheで使う](apache-webdav.md)にあります。
+- **弱いETagの拒否メッセージを改善しました。** サーバーの応答が弱いETag（`W/…`）のとき、原因と、Apacheの`FileETag Digest`の設定、手順書への案内を表示します。拒否する条件は変わりません。
+- **同期の仕組み、データ形式、設定、状態ファイルは、0.1.1から変更していません。** プラグインの動作で変わるのは、上の拒否メッセージだけです。
+- 開発側の変更: `package-lock.json`の不整合（`npm ci`が失敗する問題）を修正、CI（Node 22・24）を追加、Apacheの実通信テストをリリース候補の条件にした、RC受入済みの配布物を同じbytesのままGAに昇格するためのオフライン検証`release-promotion`を追加。
+- **Warifu方式（v0.2.0-rc.1／rc.2）は採用せず、撤回しました。** 本番の構成（Vault本体はApache、Nextcloudは外部ストレージ）がWarifuの対象外に当たるためです。この版は、Warifu関連のコードを含みません。
+
+### Warifuのプレリリースを入れた端末
+
+`v0.2.0-rc.1`／`v0.2.0-rc.2`を入れた端末は、このリリースの`main.js`・`manifest.json`・`styles.css`の3ファイルだけを、`.obsidian/plugins/vaultsync/`へ入れ替えてください。`data.json`と`private/`は削除しません。**Warifu（Files）を選んでいた設定は使えなくなります。** 転送方式を「通常のWebDAV」に設定し直し、接続・安全性の検査を行ってから、手動同期の結果を確認してください。
+
+## 更新・導入
+
+1. 復元可能な独立バックアップと、小規模なテスト用Vaultを用意します。
+2. 更新時は自動同期をOFFにしてプラグインを無効化し、このリリースの`main.js`、`manifest.json`、`styles.css`だけを各端末の`.obsidian/plugins/vaultsync/`へ配置します。
+3. Obsidianを再起動して有効化し、手動同期・競合解決を確認してから自動同期を検討してください。
+4. Apacheへ初めて接続するときは、**端末のVaultとサーバーの内容が同じ**であることを確認し、自動同期をOFFのまま手動で1回同期して、追加・更新・削除・競合の件数を確認します。Remotely Saveなど別の同期ソフトを併用している場合は、先に止めてください。
+
+内部IDは`vaultsync`のままです。`data.json`、`private/`、同期履歴、Vaultデータは削除・初期化・他端末から複製しません。
+
+## 対応ソースとハッシュ
+
+**対応ソースは、このリリースのAssetsにある`ObsidianCore-Sync-source-0.3.0.zip`から追加料金なしで取得できます。** 独自ソース・build config・lockfile・導入／再ビルド／検証手順を含みます。未改変npm依存はlockfileの正確なURLとintegrityで取得するため、完全オフラインのソースkitではありません。
+
+`LICENSE`、`NOTICE`、`THIRD_PARTY_NOTICES.txt`を同梱し、プラグインの`main.js`末尾にもAGPL全文と組み込んだMITライブラリの通知を保持しています。再配布時も通知と対応ソースへの案内を保持してください。
+
+`release-manifest.json`に各assetのサイズ・SHA-256と、ソースblobを照合したGitコミットを記録しています。SHA-256はファイルの同一性確認であり、発行者認証用の署名ではありません。
+
+## 制限と検証範囲
+
+- **確認したApache:** `httpd:2.4`（ダイジェスト固定のコンテナ）、`mod_dav_fs`、`FileETag Digest`、Basic認証。使い捨てのサーバーに対する実通信テスト（コアの検査16件）です。実際のObsidianの画面の試験、Windows・Androidの実機、あなたの本番のApache、WAN・長期運用、大規模な実Vaultは、RCの受入で確認する項目で、このリリースノートでは、成功を主張しません。
+- **対応外:** 同じApacheでも`FileETag`が既定（弱いETag）の構成、Nextcloudの通常のWebDAV（34.0.1／34.0.5／35.0.2のローカルストレージ。ETagの再利用）。Bridgeは実験版（Nextcloud 34.0.1のみ）で、今回は変更していません。
+- 転送上限は1ファイル25MiB（設定可能範囲1〜100MiB）。認証情報は端末内の`data.json`に暗号化せず保存されます。E2EEではありません。
+- AGPLの条件に従って再配布・改変でき、法令上認められる範囲で無保証です。
+
+### RC配布物で確認する項目（未実施から開始）
+
+受入記録には、RCタグ、対象commit、`release-manifest.json`のSHA-256、試験したOS／Obsidian版、各項目の結果を残します。資格情報、Vault本文、privateログは添付しません。`docs/device-test-checklist.md`の「Apache向けの項目」に従います。**未実施・失敗項目を合格として扱いません。** GAに進めるかは、RC実物の受入記録と、`release-promotion`による配布物の同一性の照合で判断し、修正した場合は新しいRCとして検証し直します。
+
+---
+
+# 過去のリリース：ObsidianCore Sync v0.1.1
 
 同期ステータスを改善したクライアント0.1.1の通常Releaseです。作者は**upiscium**、独自クライアントとNextcloud Bridgeは**AGPL-3.0-or-later**です。ObsidianCoreへの実行時依存はなく、Obsidian公式製品でもありません。GitHubのみで配布し、公式Community Pluginsには登録しません。
 
