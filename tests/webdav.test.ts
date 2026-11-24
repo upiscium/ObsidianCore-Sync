@@ -400,6 +400,26 @@ describe('WebDavStore', () => {
     expect(new TextDecoder().decode(server.files.get('intervened.md')?.data)).toBe('intervening content');
   });
 
+  it('sends Cache-Control: no-cache so an HTTP-caching client cannot answer the post-PUT read from a stale copy', async () => {
+    const server = new FakeDav({ omitPutEtag: true });
+    server.files.set('note.md', { data: bytes('old'), etag: '"old"' });
+    const stale = new Map<string, { status: number; headers: Record<string, string>; body: ArrayBuffer }>();
+    const cachingClient: HttpClient = async (request) => {
+      const method = request.method.toUpperCase();
+      const key = `${method} ${request.url}`;
+      const bypass = (request.headers['Cache-Control'] ?? '').includes('no-cache');
+      if ((method === 'GET' || method === 'HEAD') && !bypass && stale.has(key)) return stale.get(key)!;
+      const response = await server.client(request);
+      if ((method === 'GET' || method === 'HEAD') && response.status === 200 && !stale.has(key)) stale.set(key, response);
+      return response;
+    };
+    const store = new WebDavStore({ url: ROOT, username: 'user', password: 'password', maxBytes: 1024 }, cachingClient);
+    const before = await store.read('note.md');
+    const written = await store.put('note.md', bytes('new'), before!.etag);
+    expect(written).toBe(server.files.get('note.md')!.etag);
+    expect(server.requests.every((request) => request.headers['Cache-Control'] === 'no-cache')).toBe(true);
+  });
+
   it('proves conditional semantics using disposable .vaultsync resources and cleans them up', async () => {
     const server = new FakeDav();
     const store = makeStore(server);

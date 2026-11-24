@@ -760,7 +760,9 @@ export class WebDavStore implements RemoteStore {
     const request: { url: string; method: string; headers: Record<string, string>; body?: ArrayBuffer } = {
       url,
       method,
-      headers: { Authorization: this.authorization, ...headers },
+      // Obsidian's requestUrl goes through Chromium's HTTP cache. Without this a
+      // read-after-write check can be answered from a stale cached copy.
+      headers: { Authorization: this.authorization, 'Cache-Control': 'no-cache', Pragma: 'no-cache', ...headers },
     };
     if (body !== undefined) request.body = body;
     return this.http(request);
