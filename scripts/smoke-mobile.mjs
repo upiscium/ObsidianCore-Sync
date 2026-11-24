@@ -82,7 +82,7 @@ const currentManifest = JSON.parse(await readFile(new URL('../manifest.json', im
 assert.equal(currentManifest.id, 'vaultsync');
 assert.equal(currentManifest.name, 'ObsidianCore Sync');
 assert.equal(currentManifest.author, 'upiscium');
-assert.equal(currentManifest.version, '0.1.1');
+assert.equal(currentManifest.version, '0.3.0');
 plugin.manifest = currentManifest;
 let statusText = '';
 const statusUpdates = [];

@@ -109,24 +109,24 @@ describe('local unpublished release candidate validators', () => {
   });
 
   it('defines exact independent asset names and the isolated Bridge runtime allowlist', () => {
-    expect(RELEASE_VERSION).toBe('0.1.1');
+    expect(RELEASE_VERSION).toBe('0.3.0');
     expect(BRIDGE_VERSION).toBe('0.1.0');
-    expect(RELEASE_TAG).toBe('v0.1.1');
+    expect(RELEASE_TAG).toBe('v0.3.0');
     expect(RELEASE_KIND).toBe('local-release-candidate');
     expect(RELEASE_TOP_LEVEL).toBe('ObsidianCore-Sync');
     expect(RELEASE_MANIFEST_NAME).toBe('release-manifest.json');
     expect(RELEASE_RESULT_NAME).toBe('release-result.json');
     expect(BRIDGE_ARCHIVE_NAME).toBe('vaultsync_bridge-0.1.0.zip');
-    expect(SOURCE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-source-0.1.1.zip');
+    expect(SOURCE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-source-0.3.0.zip');
     expect(RELEASE_ASSET_PATHS).toEqual([
       'main.js', 'manifest.json', 'styles.css', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.txt',
-      'vaultsync_bridge-0.1.0.zip', 'ObsidianCore-Sync-source-0.1.1.zip',
+      'vaultsync_bridge-0.1.0.zip', 'ObsidianCore-Sync-source-0.3.0.zip',
     ]);
     expect(BRIDGE_RUNTIME_FILES).toHaveLength(9);
     expect(BRIDGE_DISTRIBUTION_FILES).toHaveLength(12);
     expect(BRIDGE_DISTRIBUTION_FILES).not.toContain('scripts/bridge-proof-control.php');
     expect(BRIDGE_DISTRIBUTION_FILES).not.toContain('nextcloud/vaultsync_bridge/lib/ProofListener.php');
-    expect(SOURCE_TOP_LEVEL).toBe('ObsidianCore-Sync-source-0.1.1');
+    expect(SOURCE_TOP_LEVEL).toBe('ObsidianCore-Sync-source-0.3.0');
   });
 
   it('accepts a null or formatted Git source identity without claiming publication or authenticity', () => {
@@ -219,9 +219,9 @@ describe('local unpublished release candidate validators', () => {
     expect(() => validateReleaseMetadata(missingLockLicense)).toThrow(/root license/i);
   });
 
-  it('accepts plugin 0.1.1 with independently pinned Bridge 0.1.0', () => {
+  it('accepts plugin 0.3.0 with independently pinned Bridge 0.1.0', () => {
     const metadata = validateReleaseMetadata(sampleMetadataSnapshot());
-    expect(metadata.pluginVersion).toBe('0.1.1');
+    expect(metadata.pluginVersion).toBe('0.3.0');
     expect(metadata.bridgeVersion).toBe('0.1.0');
 
     const wrongBridgeVersion = sampleMetadataSnapshot();

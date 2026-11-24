@@ -15,7 +15,7 @@ import {
   writeExclusive,
 } from './package-io.mjs';
 
-export const RELEASE_VERSION = '0.1.1';
+export const RELEASE_VERSION = '0.3.0';
 export const BRIDGE_VERSION = '0.1.0';
 // Immutable Bridge asset published with v0.1.0. A client-only release must not
 // silently replace the same-version server archive with different bytes.

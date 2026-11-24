@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — Apache WebDAV 正式対応（候補RC: v0.3.0-rc.1、GA予定: v0.3.0）
+
+承認済みの版番号です。RCの配布・受入およびGA公開が完了したことを示すものではありません。変更内容と更新時の注意は[リリースノート](docs/release-notes.md)を参照してください。
+
+- Apache（`mod_dav_fs` + `FileETag Digest`）を正式に対応するサーバー構成にした。対応範囲、参照設定、リバースプロキシの注意、接続検査で拒否されたときの対処を[docs/apache-webdav.md](docs/apache-webdav.md)に追加。READMEに対応サーバーの表を追加。
+- サーバーの応答が弱いETagのときの拒否メッセージに、原因とApacheの`FileETag Digest`の設定を案内する。拒否する条件は変えない。
+- 同期の仕組み、データ形式、設定、状態ファイル、Bridgeは変更しない。
+- `package-lock.json`の不整合（Node 22 / npm 10で`npm ci`が失敗する）を修正し、CI（Node 22・24）と`engines`を追加。
+- Apacheの実通信テストをリリース候補の条件にした（合格条件と再実行の規則は`docs/release-preparation.md`）。実通信テストの診断（想定外のエラーの原因を記録）と、接続の使い回しによる安定化。
+- RC受入済みの配布物を、同じbytesのままGAに昇格するためのオフライン検証`scripts/release-promotion.mjs`を追加。
+- 採用しないことにしたWarifu方式（`v0.2.0-rc.1`／`v0.2.0-rc.2`）のプレリリースを撤回。この版はWarifu関連のコードを含まない。
+
 ## 0.1.1 — ステータス表示改善（タグ v0.1.1）
 
 クライアントのみの通常Releaseです。Bridgeは0.1.0のまま変更せず、サーバーの再導入は不要です。実験版Bridgeの限定対応範囲も維持します。公開状況はGitHub Releasesで確認してください。
