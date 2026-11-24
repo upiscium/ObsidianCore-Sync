@@ -2,6 +2,8 @@ import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { deflateRawSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import vitestConfig from '../vitest.config.mjs';
@@ -160,12 +162,24 @@ describe('local unpublished release candidate validators', () => {
   });
 
   // The published Bridge ZIP hash covers deflate output, which depends on the zlib
-  // inside the Node binary. Official Node builds (e.g. GitHub Actions) bundle
-  // Chromium's zlib ("motley") and compress differently from the toolchain that
-  // produced the published asset, so the byte-identity check only applies there.
-  // Follow-up: compare entry contents instead of compressed bytes (Issue #2).
-  const chromiumZlib = String(process.versions.zlib).includes('motley');
-  it.skipIf(chromiumZlib)('requires the unchanged Bridge ZIP bytes published with v0.1.0', async () => {
+  // inside the Node binary. The official Node builds used by CI bundle Chromium's
+  // zlib and compress differently from the toolchain that produced the published
+  // asset (zlib 1.3.2 as built by nixpkgs). So in CI, and only there, the
+  // byte-identity check is skipped when a fixed probe does not compress to the
+  // reference bytes; elsewhere a changed compressor fails the test instead of
+  // being skipped silently. Follow-up: compare entry contents (Issue #2).
+  const REFERENCE_DEFLATE_SHA256 = '0a2d3ad57378ea2efbca42bb8f4148b9b907b8ad11cfc0cca87353e2c3a05510';
+  const compressorDiffersFromRelease = (() => {
+    let text = '';
+    let h = 'seed';
+    for (let i = 0; i < 400; i++) {
+      h = createHash('sha256').update(h).digest('hex');
+      text += `line ${i % 37}: ${h.slice(0, 24)} ${h.slice(24, 40)}\n`;
+    }
+    const out = deflateRawSync(Buffer.from(text), { level: 9 });
+    return createHash('sha256').update(out).digest('hex') !== REFERENCE_DEFLATE_SHA256;
+  })();
+  it.skipIf(process.env.CI === 'true' && compressorDiffersFromRelease)('requires the unchanged Bridge ZIP bytes published with v0.1.0', async () => {
     expect(BRIDGE_ARCHIVE_SHA256).toBe('c8f0f57e4a6e0ce64f473fb733281769eadf0b9d9710ceb18675e77bfbe2e7fe');
     const entries = await Promise.all(BRIDGE_DISTRIBUTION_FILES.map(async relative => ({
       path: relative.replace('nextcloud/', ''),
