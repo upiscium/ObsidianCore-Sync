@@ -117,6 +117,7 @@ const TEST_FILES = [
   'tests/prepare-release.test.mjs',
   'tests/release-git.test.mjs',
   'tests/release-promotion.test.mjs',
+  'tests/support/zlib-reference.mjs',
   'tests/recovery.test.ts',
   'tests/scheduler.test.ts',
   'tests/settings.test.ts',
