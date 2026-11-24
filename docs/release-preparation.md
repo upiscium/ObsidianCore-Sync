@@ -76,6 +76,23 @@ npm run smoke:mobile
 
 `main.js`のSHA-256を配布manifestと照合します。READMEの導入手順に従い、`.obsidian/plugins/vaultsync/`には3ファイルだけを置き、`data.json`／`private/`を消去・複製しません。BridgeはZIP内のREADMEを参照し、未検証サーバーの版チェックを回避しないでください。
 
+## RCを受入してからGAに昇格する
+
+GAは、端末で受入したRCと**同じcommit・同じbytes**を使い、再ビルドしません。変更が必要なら新しいRCを作り直し、受入からやり直します。
+
+1. ローカルでRC候補を生成したら、候補のcommitと`release-manifest.json`のSHA-256を、候補のディレクトリとは**別の場所**に記録します（RC受入記録）。
+2. RCとして配布する3ファイルのハッシュを照合し、テストVaultと独立バックアップを使って、`docs/device-test-checklist.md`の全項目を実施します。未実施・失敗を成功と扱いません。
+3. GAの前に、受入記録に残した値で、次を実行します。
+
+   ```bash
+   node scripts/release-promotion.mjs "$candidatePath" "$approvedCommit" "$approvedManifestSha256"
+   ```
+
+   オフラインで、候補ディレクトリの構成、manifestのハッシュとcommitの一致、各ファイルのサイズとSHA-256、Bridgeアーカイブが公開済みのものと同一であること、`manifest.json`のプラグインIDと版を確認します。**照合する値は、必ず受入記録に別保管した値を使い、候補の隣にあるファイルから取らないでください。** 同じ場所のファイルは、候補と一緒に差し替えられ得るためです。
+4. 公開するのは、検証済みのassetsと、それらを検証する`release-manifest.json`です。タグが受入済みのcommitを指すことを、公開の前に確認します。
+
+注意: Bridgeアーカイブの同一性の検査は、圧縮結果のbytesを比べます。圧縮結果はNodeのzlib実装で変わるため、公式のNode（CIなど）では、同じ内容でも一致しません。RC候補の生成とこの検証は、公開済みの配布物を作ったのと同じ環境（NixOSのNode、zlib 1.3.2）で実行してください。内容で比べる方式への変更は、Issue #2に記録しています。
+
 ## 公開を別途承認する前の確認
 
 - 候補のunit・typecheck／build・mobile smoke・PHP構文と、変更箇所に応じた隔離live試験を確認する。旧buildの結果を現在版の結果と呼ばない。
