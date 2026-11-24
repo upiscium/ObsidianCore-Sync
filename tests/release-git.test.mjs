@@ -212,6 +212,32 @@ describe('bounded read-only Git release source identity', () => {
     await expect(readGitSourceIdentity({ root: duplicateRoot, sourceSnapshot: SOURCE, runner: duplicateRunner })).rejects.toThrow(/duplicate path/);
   });
 
+  it('tolerates only the exact unshipped CI workflow file in the HEAD tree', async () => {
+    const base = [...SOURCE.keys(), '.gitignore'].sort().map((relative) => treeEntry(relative));
+    const ci = '.github/workflows/ci.yml';
+
+    const okRoot = await makeRoot('ci-workflow');
+    const okRunner = createRunner({ root: okRoot, treeEntries: [...base, treeEntry(ci)] });
+    await expect(readGitSourceIdentity({ root: okRoot, sourceSnapshot: SOURCE, runner: okRunner })).resolves.toBe(COMMIT);
+
+    // The file is not captured: it is never read as a source blob.
+    expect(okRunner.mock.calls.filter(([, args]) => args.includes('cat-file') && args.some((arg) => String(arg).endsWith(ci)))).toHaveLength(0);
+
+    for (const hidden of ['.github/workflows/other.yml', '.github/workflows/ci.yml.bak', '.github/CODEOWNERS', '.npmrc']) {
+      const root = await makeRoot('ci-lookalike');
+      const runner = createRunner({ root, treeEntries: [...base, treeEntry(ci), treeEntry(hidden)] });
+      await expect(readGitSourceIdentity({ root, sourceSnapshot: SOURCE, runner })).rejects.toThrow(/exactly the captured sources/);
+    }
+
+    const execRoot = await makeRoot('ci-executable');
+    const execRunner = createRunner({ root: execRoot, treeEntries: [...base, treeEntry(ci, { mode: '100755' })] });
+    await expect(readGitSourceIdentity({ root: execRoot, sourceSnapshot: SOURCE, runner: execRunner })).rejects.toThrow(/must not be executable/);
+
+    const linkRoot = await makeRoot('ci-symlink');
+    const linkRunner = createRunner({ root: linkRoot, treeEntries: [...base, treeEntry(ci, { mode: '120000', type: 'blob' })] });
+    await expect(readGitSourceIdentity({ root: linkRoot, sourceSnapshot: SOURCE, runner: linkRunner })).rejects.toThrow(/nonregular file, symlink, or submodule/);
+  });
+
   it('rejects Git symlinks and submodules in the tracked tree', async () => {
     for (const [label, mode, type] of [
       ['symlink', '120000', 'blob'],

@@ -245,12 +245,22 @@ async function readGitignore(root, rootDevice) {
   }
 }
 
+// Repository automation that is committed but deliberately NOT shipped with the
+// source (hidden paths are rejected everywhere else in the release tooling). Exact
+// names only; each must be a regular, non-executable blob (parseTree already
+// rejects links and submodules). It may be absent.
+const UNSHIPPED_TREE_FILES = Object.freeze(['.github/workflows/ci.yml']);
+
 async function verifyHeadTree({ root, rootDevice, sourceSnapshot, commit, runner }) {
   const snapshotPaths = validateSnapshotPaths(sourceSnapshot);
   const expectedPaths = [...snapshotPaths, '.gitignore'].sort();
   const treeBytes = await runGit(runner, root, ['ls-tree', '-r', '-z', commit]);
   const tree = parseTree(treeBytes);
-  const actualPaths = [...tree.keys()].sort();
+  for (const unshipped of UNSHIPPED_TREE_FILES) {
+    const entry = tree.get(unshipped);
+    if (entry && entry.mode !== '100644') fail(`Git HEAD tree entry must not be executable: ${unshipped}`);
+  }
+  const actualPaths = [...tree.keys()].filter((entry) => !UNSHIPPED_TREE_FILES.includes(entry)).sort();
   if (actualPaths.length !== expectedPaths.length || actualPaths.some((entry, index) => entry !== expectedPaths[index])) {
     fail('Git HEAD tree does not contain exactly the captured sources and .gitignore');
   }
