@@ -144,6 +144,7 @@ export const RELEASE_SOURCE_FILES = Object.freeze([
   'THIRD_PARTY_NOTICES.txt',
   'CHANGELOG.md',
   'docs/release-preparation.md',
+  'docs/apache-webdav.md',
   'docs/bridge-contract.md',
   'docs/device-test-checklist.md',
   'docs/device-test-guide.md',

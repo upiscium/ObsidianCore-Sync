@@ -93,6 +93,21 @@ GAは、端末で受入したRCと**同じcommit・同じbytes**を使い、再�
 
 注意: Bridgeアーカイブの同一性の検査は、圧縮結果のbytesを比べます。圧縮結果はNodeのzlib実装で変わるため、公式のNode（CIなど）では、同じ内容でも一致しません。RC候補の生成とこの検証は、公開済みの配布物を作ったのと同じ環境（NixOSのNode、zlib 1.3.2）で実行してください。内容で比べる方式への変更は、Issue #2に記録しています。
 
+## Apacheの実通信テスト（リリースの条件）
+
+リリース候補（RC）を作る前に、使い捨てのApache（`httpd:2.4`、ダイジェスト固定）に対する実通信テストを、**コアの検査16件がすべて通る**まで実行します。
+
+```bash
+VAULTSYNC_TEST_BACKEND=apache VAULTSYNC_TEST_GUI=0 \
+  nix shell nixpkgs#nodejs_24 nixpkgs#openssl nixpkgs#nss.tools --command npm run test:live
+```
+
+終了コード0で、`Passed core checks: 16`と表示されれば合格です。Obsidianの画面の試験（`VAULTSYNC_TEST_GUI`）は、別途の項目です。
+
+- **合格の記録:** 実行日、対象commit、Nodeの版、`.integration/apache-*/result.json`の内容を、RC受入記録に残します。
+- **接続のタイムアウトで失敗したとき:** メッセージが `connect ETIMEDOUT 127.0.0.1:<ポート>` の場合は、テスト用の中継サーバーへのループバック接続が、環境の都合で失敗したものです（rootless Dockerの環境で、まれに起きます。1回ごとに接続を作り直すのではなく、接続を使い回す設定で、頻度は下がります）。同じ条件で**再実行**してください。再実行でも、毎回同じ場面で失敗する場合は、環境ではなく、実装またはテストの問題として調べます。
+- **それ以外の失敗:** ETag、条件付き書き込み、競合、認証の検査が失敗した場合は、不合格です。再実行して通ったことをもって、合格とみなさないでください。失敗の原因（`scripts/live-scenarios.ts`は、想定外のエラーの種類と文言を、エラーメッセージに含めます）を調べ、修正してから、最初からやり直します。
+
 ## 公開を別途承認する前の確認
 
 - 候補のunit・typecheck／build・mobile smoke・PHP構文と、変更箇所に応じた隔離live試験を確認する。旧buildの結果を現在版の結果と呼ばない。
