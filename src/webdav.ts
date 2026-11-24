@@ -177,6 +177,13 @@ function responseHeader(headers: Record<string, string>, name: string): string |
 
 function requireStrongEtag(value: string | undefined, context: string): string {
   const etag = value?.trim();
+  if (etag && /^W\//i.test(etag) && context !== 'The expected value') {
+    // The usual cause on Apache: the default ETag is weak right after a write.
+    throw new UnsafeServerError(
+      `${context} returned a weak ETag. ObsidianCore Sync needs strong, content-derived ETags for conditional writes. ` +
+      'On Apache set "FileETag Digest" (see docs/apache-webdav.md); a server that cannot do this is not supported.',
+    );
+  }
   if (!etag || !/^"[\x21\x23-\x7e\x80-\u00ff]*"$/.test(etag)) {
     throw new UnsafeServerError(`${context} did not provide a valid strong ETag.`);
   }

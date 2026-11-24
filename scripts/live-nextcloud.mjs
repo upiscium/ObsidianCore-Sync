@@ -1060,7 +1060,10 @@ Alias "/remote.php/dav/files/${username}/" "/usr/local/apache2/htdocs/"
   });
   await new Promise(resolve => proxy.listen(0, '127.0.0.1', resolve));
   const baseUrl = `https://127.0.0.1:${proxy.address().port}`;
-  agent = new https.Agent({ ca: await fs.readFile(certFile), rejectUnauthorized: true });
+  // Reuse connections like a real client does. A fresh TLS connection per request
+  // churns thousands of loopback sockets and occasionally stalls on a dropped SYN
+  // (connect ETIMEDOUT), which is not a server or plugin failure.
+  agent = new https.Agent({ ca: await fs.readFile(certFile), rejectUnauthorized: true, keepAlive: true });
   const rootUrl = `${baseUrl}/remote.php/dav/files/${username}/CoreVault/`;
   const created = await request({ url: rootUrl, method: 'MKCOL', headers: { Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` } });
   assert.equal(created.status, 201);

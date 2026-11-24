@@ -438,7 +438,10 @@ async function expectPreconditionFailure(action: () => Promise<unknown>, context
     await action();
   } catch (error) {
     if (error instanceof PreconditionError) return error;
-    throw new Error(`${context} rejected with an unexpected error type.`);
+    // Keep the real cause: a network error (e.g. a loopback connect timeout) must
+    // not be mistaken for a protocol failure when a live run is analysed.
+    const cause = error instanceof Error ? `${(error as NodeJS.ErrnoException).code ?? error.name}: ${error.message}` : String(error);
+    throw new Error(`${context} rejected with an unexpected error type (${cause}).`, { cause: error });
   }
   throw new Error(`${context} unexpectedly succeeded.`);
 }

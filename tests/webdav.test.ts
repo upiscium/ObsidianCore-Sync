@@ -347,6 +347,22 @@ describe('WebDavStore', () => {
     await expect(store.delete('weak.md', 'W/"weak"')).rejects.toThrow(UnsafeServerError);
   });
 
+  it('explains how to fix a server that returns weak ETags (Apache FileETag Digest)', async () => {
+    const server = new FakeDav();
+    const store = makeStore(server);
+    server.files.set('weak.md', { data: bytes('x'), etag: '"strong"' });
+    server.options.weakReadEtag = true;
+    const failure = await store.read('weak.md').catch(error => error);
+    expect(failure).toBeInstanceOf(UnsafeServerError);
+    expect(String(failure.message)).toMatch(/weak ETag/);
+    expect(String(failure.message)).toMatch(/FileETag Digest/);
+    expect(String(failure.message)).toMatch(/docs\/apache-webdav\.md/);
+    // A weak validator supplied by the caller is a caller error, not a server hint.
+    const expected = await store.delete('weak.md', 'W/"weak"').catch(error => error);
+    expect(expected).toBeInstanceOf(UnsafeServerError);
+    expect(String(expected.message)).not.toMatch(/FileETag Digest/);
+  });
+
   it('checks HEAD size before GET and checks the returned body size', async () => {
     const server = new FakeDav({ headLengthOverride: 20 });
     server.files.set('large.md', { data: bytes('x'), etag: '"large"' });
