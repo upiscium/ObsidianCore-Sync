@@ -540,11 +540,14 @@ export class AutomaticErrorModal extends Modal {
 
 export class ConflictListModal extends Modal {
   private readonly host: VaultSyncHost;
+  private listClosed = false;
 
   constructor(host: VaultSyncHost) {
     super(host.plugin.app);
     this.host = host;
   }
+
+  onClose(): void { this.listClosed = true; }
 
   onOpen(): void {
     this.modalEl.addClass('vaultsync-modal');
@@ -563,7 +566,7 @@ export class ConflictListModal extends Modal {
       text(item, `${conflictKindLabel(conflict.kind)} · ${formatDate(conflict.createdAt)}`, 'div', 'vaultsync-meta');
       actionButton(item, '版を確認して解決', () => {
         if (!mayOpenReadOnly(this.host)) return;
-        new ConflictResolutionModal(this.host, conflict).open();
+        new ConflictResolutionModal(this.host, conflict, () => { if (!this.listClosed) this.onOpen(); }).open();
       });
     }
   }
@@ -585,7 +588,7 @@ class ConflictResolutionModal extends Modal {
   private generatedContent = '';
   private status: HTMLElement | null = null;
 
-  constructor(private readonly host: VaultSyncHost, private readonly conflict: Conflict) {
+  constructor(private readonly host: VaultSyncHost, private readonly conflict: Conflict, private readonly onClosed?: () => void) {
     super(host.plugin.app);
   }
 
@@ -604,6 +607,7 @@ class ConflictResolutionModal extends Modal {
   onClose(): void {
     this.closed = true;
     this.contentEl.replaceChildren();
+    this.onClosed?.();
   }
 
   private async loadSnapshots(root: HTMLElement): Promise<void> {

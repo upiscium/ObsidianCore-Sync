@@ -516,7 +516,25 @@ export class WebDavStore implements RemoteStore {
       // retry without a condition or extend this exception to the probe file.
       try { await this.deleteSegments(directorySegments, directoryInfo.etag); }
       catch (error) { if (!(error instanceof PreconditionError)) throw error; }
+    } else if (directoryInfo?.isCollection) {
+      await this.deleteEmptyProbeCollection(directorySegments);
     }
+  }
+
+  // Collections with no strong getetag (Apache mod_dav_fs reports W/"") cannot take If-Match.
+  // This collection was created by this very verification run under a random
+  // 128-bit name, so no other client holds it, and it is removed only after it
+  // is proven empty. A refusal is tolerated: this cleanup is optional.
+  private async deleteEmptyProbeCollection(segments: string[]): Promise<void> {
+    if (!/^\.verify-[0-9a-f]{32}$/.test(segments[segments.length - 1] ?? '')) return;
+    const url = this.directoryUrl(segments);
+    const listing = await this.propfind(url, '1', true);
+    if (listing === null) return;
+    const children = listing.filter((resource) => JSON.stringify(resource.segments) !== JSON.stringify(segments));
+    if (children.length > 0) return;
+    const response = await this.request(url, 'DELETE');
+    if ([200, 204, 404, 403, 405, 412].includes(response.status)) return;
+    throw new Error(`WebDAV DELETE failed while removing the verification collection (HTTP ${response.status}).`);
   }
 
   private async putSegments(segments: string[], data: Uint8Array, expectedEtag: string | null): Promise<string> {
@@ -742,7 +760,9 @@ export class WebDavStore implements RemoteStore {
     const request: { url: string; method: string; headers: Record<string, string>; body?: ArrayBuffer } = {
       url,
       method,
-      headers: { Authorization: this.authorization, ...headers },
+      // Obsidian's requestUrl goes through Chromium's HTTP cache. Without this a
+      // read-after-write check can be answered from a stale cached copy.
+      headers: { Authorization: this.authorization, 'Cache-Control': 'no-cache', Pragma: 'no-cache', ...headers },
     };
     if (body !== undefined) request.body = body;
     return this.http(request);

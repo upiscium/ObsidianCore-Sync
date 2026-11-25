@@ -28,6 +28,7 @@ interface FakeOptions {
   customPropfind?: string;
   customStatus?: (method: string, path: string) => number | undefined;
   addOptional404Propstat?: boolean;
+  etaglessCollections?: boolean;
 }
 
 class FakeDav {
@@ -138,7 +139,7 @@ class FakeDav {
         const hasChildren = [...this.files.keys(), ...this.directories].some((child) => child !== path && this.parent(child) === path);
         if (hasChildren) return this.response(409);
         const etag = this.directoryEtags.get(path);
-        if (!this.options.ignoreConditions && (!etag || request.headers['If-Match'] !== etag)) return this.response(412);
+        if (!this.options.ignoreConditions && !this.options.etaglessCollections && (!etag || request.headers['If-Match'] !== etag)) return this.response(412);
         this.directories.delete(path);
         this.directoryEtags.delete(path);
         return this.response(204);
@@ -188,7 +189,7 @@ class FakeDav {
       const etagPropstat = this.options.addOptional404Propstat
         ? '<d:propstat><d:prop><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat>'
         : '';
-      return `<d:response><d:href>${this.escapeXml(this.href(path, collection))}</d:href><d:propstat><d:prop><d:resourcetype>${collection ? '<d:collection/>' : ''}</d:resourcetype><d:getcontentlength>${size}</d:getcontentlength><d:getetag>${etag}</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>${etagPropstat}</d:response>`;
+      return `<d:response><d:href>${this.escapeXml(this.href(path, collection))}</d:href><d:propstat><d:prop><d:resourcetype>${collection ? '<d:collection/>' : ''}</d:resourcetype><d:getcontentlength>${size}</d:getcontentlength>${collection && this.options.etaglessCollections ? '<d:getetag>W/""</d:getetag>' : `<d:getetag>${etag}</d:getetag>`}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>${etagPropstat}</d:response>`;
     }).join('');
     return `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">${responses}</d:multistatus>`;
   }
@@ -399,6 +400,26 @@ describe('WebDavStore', () => {
     expect(new TextDecoder().decode(server.files.get('intervened.md')?.data)).toBe('intervening content');
   });
 
+  it('sends Cache-Control: no-cache so an HTTP-caching client cannot answer the post-PUT read from a stale copy', async () => {
+    const server = new FakeDav({ omitPutEtag: true });
+    server.files.set('note.md', { data: bytes('old'), etag: '"old"' });
+    const stale = new Map<string, { status: number; headers: Record<string, string>; body: ArrayBuffer }>();
+    const cachingClient: HttpClient = async (request) => {
+      const method = request.method.toUpperCase();
+      const key = `${method} ${request.url}`;
+      const bypass = (request.headers['Cache-Control'] ?? '').includes('no-cache');
+      if ((method === 'GET' || method === 'HEAD') && !bypass && stale.has(key)) return stale.get(key)!;
+      const response = await server.client(request);
+      if ((method === 'GET' || method === 'HEAD') && response.status === 200 && !stale.has(key)) stale.set(key, response);
+      return response;
+    };
+    const store = new WebDavStore({ url: ROOT, username: 'user', password: 'password', maxBytes: 1024 }, cachingClient);
+    const before = await store.read('note.md');
+    const written = await store.put('note.md', bytes('new'), before!.etag);
+    expect(written).toBe(server.files.get('note.md')!.etag);
+    expect(server.requests.every((request) => request.headers['Cache-Control'] === 'no-cache')).toBe(true);
+  });
+
   it('proves conditional semantics using disposable .vaultsync resources and cleans them up', async () => {
     const server = new FakeDav();
     const store = makeStore(server);
@@ -433,6 +454,32 @@ describe('WebDavStore', () => {
     const directoryDeletes = server.requests.filter(request => request.method === 'DELETE' && !request.url.endsWith('/probe.bin'));
     expect(directoryDeletes).toHaveLength(1);
     expect(directoryDeletes[0]!.headers['If-Match']).toBeDefined();
+  });
+
+  it('removes the empty probe collection when the server gives collections no ETag (Apache)', async () => {
+    const server = new FakeDav({ etaglessCollections: true });
+    await expect(makeStore(server).verify()).resolves.toBeUndefined();
+    expect([...server.files.keys()]).toEqual([]);
+    expect([...server.directories].filter(path => path.startsWith('.vaultsync/.verify-'))).toEqual([]);
+    const deletes = server.requests.filter(request => request.method === 'DELETE' && !request.url.endsWith('/probe.bin'));
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]!.url.endsWith('/')).toBe(true);
+  });
+
+  it('never deletes a non-empty or non-probe collection without an ETag', async () => {
+    const server = new FakeDav({ etaglessCollections: true });
+    const store = makeStore(server) as unknown as { cleanupProbe(file: string[], directory: string[]): Promise<void> };
+    const probe = '.vaultsync/.verify-' + 'a'.repeat(32);
+    server.directories.add(probe);
+    server.files.set(`${probe}/other.bin`, { data: bytes('keep'), etag: '"keep"' });
+    await store.cleanupProbe([...probe.split('/'), 'probe.bin'], probe.split('/'));
+    expect(server.directories.has(probe)).toBe(true);
+    expect(server.files.has(`${probe}/other.bin`)).toBe(true);
+    const user = 'projects';
+    server.directories.add(user);
+    await store.cleanupProbe([user, 'probe.bin'], [user]);
+    expect(server.directories.has(user)).toBe(true);
+    expect(server.requests.filter(request => request.method === 'DELETE')).toHaveLength(0);
   });
 
   it('does not swallow a rejected conditional deletion of the probe file during cleanup', async () => {
