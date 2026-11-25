@@ -1,11 +1,12 @@
 # Changelog
 
-## 0.3.0 — Apache WebDAV 正式対応（候補RC: v0.3.0-rc.1、GA予定: v0.3.0）
+## 0.3.0 — Apache WebDAV 正式対応（タグ v0.3.0）
 
-承認済みの版番号です。RCの配布・受入およびGA公開が完了したことを示すものではありません。変更内容と更新時の注意は[リリースノート](docs/release-notes.md)を参照してください。
+端末で受入したリリース候補（`v0.3.0-rc.3`）と同じ`main.js`・`manifest.json`・`styles.css`です。受入はLinux（NixOS）とAndroid 16で行い、Windowsは未検証です。変更内容と更新時の注意は[リリースノート](docs/release-notes.md)を参照してください。
 
 - Apache（`mod_dav_fs` + `FileETag Digest`）を正式に対応するサーバー構成にした。対応範囲、参照設定、リバースプロキシの注意、接続検査で拒否されたときの対処を[docs/apache-webdav.md](docs/apache-webdav.md)に追加。READMEに対応サーバーの表を追加。
 - サーバーの応答が弱いETagのときの拒否メッセージに、原因とApacheの`FileETag Digest`の設定を案内する。拒否する条件は変えない。
+- 実機の受入で見つかった不具合を修正: 書き込み直後の読み直しが、Chromiumのキャッシュにより古い内容を返す問題（全リクエストに`Cache-Control: no-cache`）、接続検査のたびにサーバーに空フォルダ`.vaultsync/.verify-<id>/`が残る問題、競合解決後も一覧に項目が残る問題、Androidの通信層が本文のない`HEAD`の`404`で例外を投げ接続検査が失敗する問題（`GET`への切り替え）。
 - 同期の仕組み、データ形式、設定、状態ファイル、Bridgeは変更しない。
 - `package-lock.json`の不整合（Node 22 / npm 10で`npm ci`が失敗する）を修正し、CI（Node 22・24）と`engines`を追加。
 - Apacheの実通信テストをリリース候補の条件にした（合格条件と再実行の規則は`docs/release-preparation.md`）。実通信テストの診断（想定外のエラーの原因を記録）と、接続の使い回しによる安定化。
