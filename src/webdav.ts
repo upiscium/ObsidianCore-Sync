@@ -560,10 +560,18 @@ export class WebDavStore implements RemoteStore {
 
   private async readSegments(segments: string[]): Promise<RemoteFile | null> {
     const url = this.fileUrl(segments);
-    const head = await this.request(url, 'HEAD');
-    if (head.status === 404) return null;
+    // The HEAD only guards against downloading an oversized file. Some HTTP stacks
+    // (observed on Android 16) throw on a body-less HEAD 404 although the server
+    // answered correctly. Fall back to the GET, which must still succeed with a
+    // strong ETag, so a real failure cannot be hidden by this.
+    let head: { status: number; headers: Record<string, string> } | undefined;
+    try { head = await this.request(url, 'HEAD'); }
+    catch (error) { if (error instanceof UnsafeServerError) throw error; }
+    if (head?.status === 404) return null;
     let headLength: number | undefined;
-    if (head.status === 200) {
+    if (head === undefined) {
+      // No usable HEAD response; the GET below decides.
+    } else if (head.status === 200) {
       headLength = parseOptionalContentLength(responseHeader(head.headers, 'content-length'), this.maxBytes, 'WebDAV HEAD');
     } else if (head.status !== 405 && head.status !== 501) {
       throw new Error(`WebDAV HEAD failed (HTTP ${head.status}).`);

@@ -420,6 +420,21 @@ describe('WebDavStore', () => {
     expect(server.requests.every((request) => request.headers['Cache-Control'] === 'no-cache')).toBe(true);
   });
 
+  it('falls back to GET when the HTTP stack throws on a HEAD (Android body-less 404), without hiding real failures', async () => {
+    const server = new FakeDav();
+    server.files.set('there.md', { data: bytes('hello'), etag: '"there"' });
+    const headThrows: HttpClient = async (request) => {
+      if (request.method.toUpperCase() === 'HEAD') throw new Error('IOException: Stream closed');
+      return server.client(request);
+    };
+    const store = new WebDavStore({ url: ROOT, username: 'user', password: 'password', maxBytes: 1024 }, headThrows);
+    expect(await store.read('missing.md')).toBeNull();
+    expect(new TextDecoder().decode((await store.read('there.md'))!.data)).toBe('hello');
+    const allThrow: HttpClient = async () => { throw new Error('IOException: Stream closed'); };
+    const broken = new WebDavStore({ url: ROOT, username: 'user', password: 'password', maxBytes: 1024 }, allThrow);
+    await expect(broken.read('there.md')).rejects.toThrow(/Stream closed/);
+  });
+
   it('proves conditional semantics using disposable .vaultsync resources and cleans them up', async () => {
     const server = new FakeDav();
     const store = makeStore(server);
