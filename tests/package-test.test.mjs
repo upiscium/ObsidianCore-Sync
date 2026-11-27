@@ -45,8 +45,8 @@ afterEach(() => vi.restoreAllMocks());
 describe('local-test package validators', () => {
   it('uses the local-only ObsidianCore Sync archive brand without renaming legacy payload paths', () => {
     expect(PACKAGE_VERSION).toBe(RELEASE_VERSION);
-    expect(PACKAGE_TOP_LEVEL).toBe('ObsidianCore-Sync-local-test-0.3.0');
-    expect(PACKAGE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-local-test-0.3.0.zip');
+    expect(PACKAGE_TOP_LEVEL).toBe('ObsidianCore-Sync-local-test-0.3.1');
+    expect(PACKAGE_ARCHIVE_NAME).toBe('ObsidianCore-Sync-local-test-0.3.1.zip');
     expect(PACKAGE_PAYLOADS).toHaveLength(21);
     expect(PACKAGE_PAYLOADS.map(({ destination }) => destination)).toContain('obsidian/vaultsync/manifest.json');
     expect(PACKAGE_PAYLOADS.map(({ destination }) => destination)).toContain('nextcloud/vaultsync_bridge/appinfo/info.xml');
@@ -76,7 +76,7 @@ describe('local-test package validators', () => {
       'THIRD_PARTY_NOTICES.txt',
       'START-HERE.md',
       'DEVICE-TEST-CHECKLIST.md',
-      'ObsidianCore-Sync-source-0.3.0.zip',
+      'ObsidianCore-Sync-source-0.3.1.zip',
     ]);
     expect(Object.isFrozen(PACKAGE_PAYLOADS)).toBe(true);
     expect(PACKAGE_PAYLOADS.every(Object.isFrozen)).toBe(true);

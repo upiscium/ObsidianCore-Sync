@@ -82,7 +82,7 @@ const currentManifest = JSON.parse(await readFile(new URL('../manifest.json', im
 assert.equal(currentManifest.id, 'vaultsync');
 assert.equal(currentManifest.name, 'ObsidianCore Sync');
 assert.equal(currentManifest.author, 'upiscium');
-assert.equal(currentManifest.version, '0.3.0');
+assert.equal(currentManifest.version, '0.3.1');
 plugin.manifest = currentManifest;
 let statusText = '';
 const statusUpdates = [];
@@ -249,7 +249,7 @@ assert.equal(statusText, activeStatus, 'A busy rejection must not replace the ac
 const beforeClear = { adapterCalls, httpCalls };
 plugin.clearAutomaticSyncError();
 assert.equal(plugin.automaticSyncError(), null);
-assert.equal(statusText, activeStatus, 'Clearing historical details does not establish a recovered sync');
+assert.equal(statusText, 'ObsidianCore Sync: 同期中 0/1 ファイル', 'Clearing the record also clears the failure badge, without touching the active attempt');
 assert.deepEqual({ adapterCalls, httpCalls }, beforeClear, 'Viewing/clearing the record must not access I/O');
 finishAutomatic({ ...successfulReport(), errors: [{ path: secretPath, message: editorError }] });
 await inFlightAutomatic;
