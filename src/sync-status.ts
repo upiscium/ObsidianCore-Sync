@@ -52,6 +52,9 @@ export class SyncStatus {
     if (this.attempt?.token === token) this.attempt = null;
   }
 
+  /** The user cleared the automatic-error record: drop the badge too. */
+  clearFailure(): void { this.automaticFailure = false; }
+
   reset(): void {
     this.attempt = null;
     this.automaticFailure = false;
