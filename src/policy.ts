@@ -2,6 +2,8 @@ import picomatch from 'picomatch';
 import type { ScopeOptions } from './contracts';
 
 const RESERVED_COMPONENTS = new Set(['.git', '.trash', '.vaultsync']);
+/** Partial uploads left by Nextcloud-style clients (name.ocTransferId<N>.part). Never real notes. */
+const TRANSFER_RESIDUE_PATTERNS = ['**/*.ocTransferId*.part'];
 const SAFE_SETTINGS_EXTENSIONS = new Set(['.json', '.css']);
 const WINDOWS_DEVICE_NAME = /^(?:con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])(?:\..*)?$/i;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
@@ -179,7 +181,7 @@ export class ScopePolicy {
     this.configDir = options.configDir;
     this.configKey = portableKey(options.configDir);
     this.pluginId = options.pluginId;
-    this.rules = options.excludes
+    this.rules = [...TRANSFER_RESIDUE_PATTERNS, ...options.excludes]
       .map(compileExclusionRule)
       .filter((rule): rule is ExclusionRule => rule !== null);
 

@@ -53,6 +53,14 @@ describe('ScopePolicy', () => {
     expect(policy.includes('root.md')).toBe(true);
   });
 
+  it('always excludes partial-upload residue (.ocTransferId*.part) at any depth, without user rules', () => {
+    const policy = new ScopePolicy(options());
+    expect(policy.includes('big.zip.ocTransferId123456.part')).toBe(false);
+    expect(policy.includes('folder/note.md.ocTransferId9.part')).toBe(false);
+    expect(policy.includes('folder/note.md')).toBe(true);
+    expect(policy.includes('ocTransferId.md')).toBe(true);
+  });
+
   it('treats plain and trailing-slash exclusions as directory prefixes', () => {
     const policy = new ScopePolicy(options({ excludes: ['private/', 'archive'] }));
     expect(policy.includes('private')).toBe(false);
