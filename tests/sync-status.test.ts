@@ -86,6 +86,16 @@ describe('file-count and automatic failure status', () => {
     expect(status.text(false)).toBe('自動同期失敗 · 競合 0');
   });
 
+  it('clearFailure removes the badge without touching an attempt in progress', () => {
+    const status = failedStatus();
+    status.clearFailure();
+    expect(status.text(false)).toBe('競合 0');
+    const token = status.begin();
+    status.clearFailure();
+    expect(status.text(true)).toBe('同期中（対象確認中）');
+    status.end(token);
+  });
+
   it('shows conflicts separately and does not treat deferral/skip/interruption as a new failure', () => {
     const status = new SyncStatus();
     for (const patch of [{ deferred: ['editing.md'] }, { skipped: ['large.bin'] }, { interrupted: true }]) {

@@ -502,7 +502,7 @@ export class AutomaticErrorModal extends Modal {
     const root = element('div', this.contentEl, 'vaultsync-modal-content');
     text(root, 'この画面は端末内で確認するためのものです。ファイル名を含む場合があるので、画面全体やスクリーンショットを共有しないでください。URL・認証情報を含み得る原文は保持せず、認識できたエラーの定型説明だけを表示します。', 'p', 'vaultsync-warning');
     text(root, '最後の自動同期エラーの記録であり、現在も失敗しているとは限りません。開く／表示を更新する操作では同期や通信を行いません。手動同期やその後の自動同期が成功しても残りますが、次の自動同期エラー・設定保存・プラグイン停止／再起動で置換または消去されます。', 'p', 'vaultsync-help');
-    text(root, '記録を消去すると、既に開始済みの同期からの記録も破棄します。次に開始する自動同期から再び記録します。ファイルや同期状態を消去する操作ではありません。', 'p', 'vaultsync-help');
+    text(root, '記録を消去すると、既に開始済みの同期からの記録も破棄します。画面右下の「自動同期失敗」表示も消えます。次に開始する自動同期から再び記録します。ファイルや同期状態を消去する操作ではありません。', 'p', 'vaultsync-help');
     const actions = element('div', root, 'vaultsync-actions');
     actionButton(actions, '表示を更新', () => this.render());
     actionButton(actions, '記録を消去', () => {

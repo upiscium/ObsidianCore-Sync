@@ -82,7 +82,11 @@ export default class VaultSyncPlugin extends Plugin implements VaultSyncHost {
   }
   busy(): boolean { return this.working; }
   automaticSyncError(): AutomaticErrorSnapshot | null { return this.automaticErrors.peek(); }
-  clearAutomaticSyncError(): void { this.automaticErrors.clear(); }
+  clearAutomaticSyncError(): void {
+    this.automaticErrors.clear();
+    this.syncStatus.clearFailure();
+    this.updateStatus();
+  }
   showAutomaticSyncError(): void {
     if (this.unloaded) return;
     this.automaticErrorModal ??= new AutomaticErrorModal(this);
