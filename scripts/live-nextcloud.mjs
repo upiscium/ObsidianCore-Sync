@@ -306,7 +306,7 @@ async function guiTest(baseUrl, certFile) {
     assert.equal(await cdp.evaluate('app.commands.commands["vaultsync:sync-now"].name'), 'ObsidianCore Sync: 今すぐ同期');
     assert.equal(await cdp.evaluate('app.plugins.plugins.vaultsync.manifest.author'), 'upiscium');
     const clientVersion = await cdp.evaluate('app.plugins.plugins.vaultsync.manifest.version');
-    assert.equal(clientVersion, '0.3.0');
+    assert.equal(clientVersion, '0.3.1');
     const syncWithStatusProof = await cdp.evaluate(`(async () => {
       const plugin = app.plugins.plugins.vaultsync;
       const statusElement = plugin.status;
