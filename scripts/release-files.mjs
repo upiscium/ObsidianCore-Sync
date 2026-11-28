@@ -20,6 +20,22 @@ export const BRIDGE_VERSION = '0.1.0';
 // Immutable Bridge asset published with v0.1.0. A client-only release must not
 // silently replace the same-version server archive with different bytes.
 export const BRIDGE_ARCHIVE_SHA256 = 'c8f0f57e4a6e0ce64f473fb733281769eadf0b9d9710ceb18675e77bfbe2e7fe';
+// The same asset by content: entry name and SHA-256 of the uncompressed bytes. The
+// compressed bytes depend on the zlib inside Node, the contents do not (#11).
+export const BRIDGE_ARCHIVE_ENTRIES = Object.freeze([
+  ['vaultsync_bridge/LICENSE', '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0'],
+  ['vaultsync_bridge/NOTICE', '72ddc2d415b73b49379631ceb98777ad55fabd18e707c544e028e69185627e7f'],
+  ['vaultsync_bridge/README.md', '06fe177bf56516966a60eeb1bf046c68f96556458e7c68efc0651bcd89fed5a6'],
+  ['vaultsync_bridge/appinfo/info.xml', 'e0350f3ed4532249f8e853ecce904b3eefa54659773491b140d00b534e8e4bf9'],
+  ['vaultsync_bridge/appinfo/routes.php', '222bea50be78684fc3620e5868b05e7d3401e8e791364bdacabca12653136990'],
+  ['vaultsync_bridge/lib/AppInfo/Application.php', 'ed706c58705fa0b3eca98300c3d4dac392681607b5e98a3603e987511f1578ad'],
+  ['vaultsync_bridge/lib/Controller/ApiController.php', 'e18d29d2d19b72fd1634aece7f99e9d77f7c2f9e65d6111d840750e8bde78116'],
+  ['vaultsync_bridge/lib/Exception/BridgeException.php', 'e790bbe38aec7446470cc288fe719cc61d46198d96a80db45d0ff4dbb1d435ee'],
+  ['vaultsync_bridge/lib/Service/BridgeService.php', '9ec6aeda50e708071e5da12df5ad8516122b49a5991555cad16e17ba04ede310'],
+  ['vaultsync_bridge/lib/Service/FileSnapshot.php', '0f115f5742a107127a4cc50c36af4a6a13540b1fe81c5ff6c8204abe4a72d5f2'],
+  ['vaultsync_bridge/lib/Service/MutationGuard.php', 'dc7227630f4317a4c5c199e8dd556c219e6176aece2e893fb370adb3f89a173f'],
+  ['vaultsync_bridge/lib/Service/PathResolver.php', '8e062d9bf27ee7e0cb808c044b012883968fccb714795137f78081bb38477b2f'],
+].map(([name, sha256]) => Object.freeze({ name, sha256 })));
 export const SOURCE_TOP_LEVEL = `ObsidianCore-Sync-source-${RELEASE_VERSION}`;
 export const SOURCE_ARCHIVE_NAME = `${SOURCE_TOP_LEVEL}.zip`;
 export const SOURCE_FILE_MAX_BYTES = 32 * 1024 * 1024;
@@ -117,7 +133,6 @@ const TEST_FILES = [
   'tests/prepare-release.test.mjs',
   'tests/release-git.test.mjs',
   'tests/release-promotion.test.mjs',
-  'tests/support/zlib-reference.mjs',
   'tests/recovery.test.ts',
   'tests/scheduler.test.ts',
   'tests/settings.test.ts',

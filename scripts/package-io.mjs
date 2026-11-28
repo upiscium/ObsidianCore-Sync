@@ -241,7 +241,7 @@ function zipPath(value) {
 
 // A small dependency-free ZIP32 writer. Input entry names are ASCII allowlist paths;
 // buffers and entry counts are bounded by callers before allocation.
-export function createZipBytes(entries, { maxTotalBytes = MAX_ARCHIVE_BYTES, maxEntryBytes = MAX_FILE_BYTES } = {}) {
+export function createZipBytes(entries, { maxTotalBytes = MAX_ARCHIVE_BYTES, maxEntryBytes = MAX_FILE_BYTES, level = 9 } = {}) {
   if (!Array.isArray(entries) || entries.length === 0 || entries.length > 0xffff) fail('ZIP entries must be a non-empty bounded array');
   if (!Number.isSafeInteger(maxTotalBytes) || maxTotalBytes <= 0 || maxTotalBytes > MAX_ARCHIVE_BYTES
     || !Number.isSafeInteger(maxEntryBytes) || maxEntryBytes <= 0 || maxEntryBytes > maxTotalBytes) {
@@ -261,7 +261,7 @@ export function createZipBytes(entries, { maxTotalBytes = MAX_ARCHIVE_BYTES, max
     if (nameBytes.toString('ascii') !== name || nameBytes.length > 0xffff) fail(`ZIP path must be bounded ASCII: ${name}`);
     totalInput += entry.bytes.length;
     if (!Number.isSafeInteger(totalInput) || totalInput > maxTotalBytes || entry.bytes.length > maxEntryBytes) fail('ZIP input exceeds its bounded size limit');
-    const compressed = deflateRawSync(entry.bytes, { level: 9 });
+    const compressed = deflateRawSync(entry.bytes, { level });
     const crc = crc32(entry.bytes);
     if (compressed.length > 0xffffffff || entry.bytes.length > 0xffffffff || offset > 0xffffffff) fail('ZIP32 size limit exceeded');
     const local = Buffer.alloc(30 + nameBytes.length);
@@ -466,4 +466,58 @@ export async function createFreshDirectory(base, prefix, rootDevice) {
   assertDirectoryStat(outputStat, rootDevice, outputDirectory);
   if (await fs.realpath(outputDirectory) !== outputDirectory) fail('Fresh output directory must be canonical');
   return outputDirectory;
+}
+
+/**
+ * Entry names, sizes and SHA-256 of a ZIP32 archive, independent of how the
+ * entries were compressed (so a different zlib gives the same answer). Strict
+ * and bounded: only stored/deflate entries, no extra fields, no duplicates, and
+ * every entry's CRC and size must match its inflated bytes.
+ */
+export function zipContentDigests(archiveBytes, { maxArchiveBytes = MAX_ARCHIVE_BYTES, maxEntryBytes = MAX_FILE_BYTES } = {}) {
+  if (!Buffer.isBuffer(archiveBytes) || archiveBytes.length < 22 || archiveBytes.length > maxArchiveBytes) {
+    fail('ZIP archive bytes are missing or outside the size bound');
+  }
+  const endOffset = archiveBytes.length - 22;
+  if (archiveBytes.readUInt32LE(endOffset) !== 0x06054b50) fail('ZIP end-of-central-directory record is missing');
+  const count = archiveBytes.readUInt16LE(endOffset + 10);
+  const centralOffset = archiveBytes.readUInt32LE(endOffset + 16);
+  if (archiveBytes.readUInt16LE(endOffset + 4) !== 0 || archiveBytes.readUInt16LE(endOffset + 6) !== 0
+    || archiveBytes.readUInt16LE(endOffset + 8) !== count || count === 0
+    || archiveBytes.readUInt32LE(endOffset + 12) + centralOffset !== endOffset
+    || archiveBytes.readUInt16LE(endOffset + 20) !== 0) fail('Unsupported or inconsistent ZIP directory');
+  const result = [];
+  const seen = new Set();
+  let cursor = centralOffset;
+  for (let index = 0; index < count; index += 1) {
+    if (cursor + 46 > endOffset || archiveBytes.readUInt32LE(cursor) !== 0x02014b50) fail('ZIP central directory entry is malformed');
+    const method = archiveBytes.readUInt16LE(cursor + 10);
+    const crc = archiveBytes.readUInt32LE(cursor + 16);
+    const compressedSize = archiveBytes.readUInt32LE(cursor + 20);
+    const size = archiveBytes.readUInt32LE(cursor + 24);
+    const nameLength = archiveBytes.readUInt16LE(cursor + 28);
+    const extraLength = archiveBytes.readUInt16LE(cursor + 30);
+    const commentLength = archiveBytes.readUInt16LE(cursor + 32);
+    const localOffset = archiveBytes.readUInt32LE(cursor + 42);
+    if (extraLength !== 0 || commentLength !== 0 || (method !== 0 && method !== 8) || size > maxEntryBytes
+      || cursor + 46 + nameLength > endOffset) fail('Unsupported ZIP entry');
+    const name = archiveBytes.subarray(cursor + 46, cursor + 46 + nameLength).toString('ascii');
+    if (seen.has(name) || name.endsWith('/') || safeSegments(name).join('/') !== name) fail('Unsafe or duplicate ZIP entry name');
+    seen.add(name);
+    if (localOffset + 30 > centralOffset || archiveBytes.readUInt32LE(localOffset) !== 0x04034b50) fail('ZIP local header is malformed');
+    const dataStart = localOffset + 30 + archiveBytes.readUInt16LE(localOffset + 26) + archiveBytes.readUInt16LE(localOffset + 28);
+    if (dataStart + compressedSize > centralOffset) fail('ZIP entry data is out of bounds');
+    const raw = archiveBytes.subarray(dataStart, dataStart + compressedSize);
+    let bytes;
+    try {
+      bytes = method === 0 ? raw : inflateRawSync(raw, { maxOutputLength: size + 1 });
+    } catch {
+      fail('ZIP entry cannot be decompressed within its size bound');
+    }
+    if (bytes.length !== size || crc32(bytes) !== crc) fail('ZIP entry size or CRC mismatch');
+    result.push({ name, size, sha256: sha256(bytes) });
+    cursor += 46 + nameLength;
+  }
+  if (cursor !== endOffset) fail('ZIP central directory has trailing data');
+  return result.sort((a, b) => (a.name < b.name ? -1 : 1));
 }
