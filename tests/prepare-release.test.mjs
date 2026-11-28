@@ -5,7 +5,6 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import vitestConfig from '../vitest.config.mjs';
-import { skipBridgeByteIdentityInCi } from './support/zlib-reference.mjs';
 import {
   BRIDGE_ARCHIVE_NAME,
   RELEASE_ASSET_PATHS,
@@ -160,7 +159,21 @@ describe('local unpublished release candidate validators', () => {
       .toThrow(/must match the release manifest/);
   });
 
-  it.skipIf(skipBridgeByteIdentityInCi)('requires the unchanged Bridge ZIP bytes published with v0.1.0', async () => {
+  it('judges the Bridge ZIP by contents: another compression level passes, any content change fails', async () => {
+    const entries = await Promise.all(BRIDGE_DISTRIBUTION_FILES.map(async relative => ({
+      path: relative.replace('nextcloud/', ''),
+      bytes: await fs.readFile(new URL(`../${relative}`, import.meta.url)),
+    })));
+    for (const level of [1, 6, 9]) {
+      expect(validateBridgeArchiveIdentity(createZipBytes(entries, { level }))).toBe(true);
+    }
+    const extra = [...entries, { path: 'vaultsync_bridge/EXTRA.txt', bytes: Buffer.from('x') }];
+    expect(() => validateBridgeArchiveIdentity(createZipBytes(extra, { level: 1 }))).toThrow(/differs from its published asset/);
+    expect(() => validateBridgeArchiveIdentity(createZipBytes(entries.slice(1), { level: 1 }))).toThrow(/differs from its published asset/);
+    expect(() => validateBridgeArchiveIdentity(Buffer.from('not a zip at all, but long enough to pass'))).toThrow(/differs from its published asset/);
+  });
+
+  it('requires the unchanged Bridge ZIP contents published with v0.1.0', async () => {
     expect(BRIDGE_ARCHIVE_SHA256).toBe('c8f0f57e4a6e0ce64f473fb733281769eadf0b9d9710ceb18675e77bfbe2e7fe');
     const entries = await Promise.all(BRIDGE_DISTRIBUTION_FILES.map(async relative => ({
       path: relative.replace('nextcloud/', ''),

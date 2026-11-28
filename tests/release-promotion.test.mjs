@@ -1,4 +1,3 @@
-import { skipBridgeByteIdentityInCi } from './support/zlib-reference.mjs';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -47,7 +46,7 @@ async function fixture() {
 }
 
 describe('release promotion verification', () => {
-  it.skipIf(skipBridgeByteIdentityInCi)('accepts a fresh candidate pinned to its manifest and commit', async () => {
+  it('accepts a fresh candidate pinned to its manifest and commit', async () => {
     const f = await fixture();
     await expect(verifyPromotion({ ...f, commit, manifestSha256: f.manifestSha256 })).resolves.toEqual({
       version: RELEASE_VERSION,

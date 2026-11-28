@@ -18,11 +18,13 @@ import {
   sha256,
   validateRegularFileStat,
   verifyZipArchive,
+  zipContentDigests,
   writeExclusive,
 } from './package-io.mjs';
 import {
   BRIDGE_VERSION,
   BRIDGE_ARCHIVE_SHA256,
+  BRIDGE_ARCHIVE_ENTRIES,
   BRIDGE_DISTRIBUTION_FILES,
   RELEASE_VERSION,
   SOURCE_ARCHIVE_NAME,
@@ -247,7 +249,19 @@ export function validateBridgeArchiveIdentity(bytes) {
   if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > MAX_RELEASE_ASSET_BYTES) {
     fail('Bridge archive must contain bounded bytes');
   }
-  if (sha256(bytes) !== BRIDGE_ARCHIVE_SHA256) {
+  if (sha256(bytes) === BRIDGE_ARCHIVE_SHA256) return true;
+  // Another zlib compresses the same files to other bytes. Accept that only when
+  // every entry (name, size is implied, SHA-256 of the contents) is the published one.
+  let actual;
+  try {
+    actual = zipContentDigests(bytes, { maxArchiveBytes: MAX_RELEASE_ASSET_BYTES });
+  } catch {
+    actual = null;
+  }
+  const same = actual !== null && actual.length === BRIDGE_ARCHIVE_ENTRIES.length
+    && BRIDGE_ARCHIVE_ENTRIES.every((entry, index) => actual[index].name === entry.name
+      && actual[index].sha256 === entry.sha256);
+  if (!same) {
     fail(`Bridge ${BRIDGE_VERSION} archive differs from its published asset; do not reuse the version for changed contents`);
   }
   return true;
